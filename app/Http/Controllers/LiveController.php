@@ -34,7 +34,7 @@ class LiveController extends Controller
             ]);
         }
 
-        return view('lives.index', compact('lives'));
+        return view('admin.live.index', compact('lives'));
     }
 
     public function store(Request $request)

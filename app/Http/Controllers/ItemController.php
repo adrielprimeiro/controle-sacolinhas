@@ -119,4 +119,45 @@ class ItemController extends Controller
 
         return redirect()->route('items.index')->with('success', 'Item deletado com sucesso!');
     }
+
+    /**
+     * Search items for API
+     */
+    public function search(Request $request)
+    {
+        $query = $request->get('q');
+        
+        if (strlen($query) < 2) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Query muito curta'
+            ]);
+        }
+        
+        $items = Item::where('nome_do_produto', 'like', "%{$query}%")
+                     ->orWhere('codigo', 'like', "%{$query}%")
+                     ->orWhere('descricao', 'like', "%{$query}%")
+                     ->where('status', 'disponivel')
+                     ->limit(10)
+                     ->get();
+        
+        // Formatar dados para o component
+        $formattedItems = $items->map(function($item) {
+            return [
+                'id' => $item->id,
+                'name' => $item->nome_do_produto,
+                'sku' => $item->codigo,
+                'price' => $item->preco,
+                'formatted_price' => 'R$ ' . number_format($item->preco, 2, ',', '.'),
+                'image_url' => $item->image ? asset('storage/' . $item->image) : asset('images/no-image.png'),
+                'stock' => 'Disponível',
+                'description' => $item->descricao ?? ''
+            ];
+        });
+        
+        return response()->json([
+            'success' => true,
+            'data' => $formattedItems
+        ]);
+    }
 }
