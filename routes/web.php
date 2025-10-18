@@ -1,6 +1,10 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Http\Request;
+use App\Http\Controllers\UserController;
+use App\Http\Controllers\ItemController;
+
 
 Route::get('/', function () {
     return view('welcome');
@@ -64,3 +68,11 @@ Route::prefix('api')->group(function () {
     Route::get('/sacolinhas/live/{liveId}', [App\Http\Controllers\SacolinhaController::class, 'getByLive']);
     Route::delete('/sacolinhas/remove', [App\Http\Controllers\SacolinhaController::class, 'removeItem']);
 });
+
+
+
+// Rota para busca de usuários
+Route::get('/users/search', [UserController::class, 'search'])->name('api.users.search');
+
+// Rota para busca de itens (se não tiver)
+Route::get('/items/search', [ItemController::class, 'search'])->name('api.items.search');
