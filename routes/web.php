@@ -8,6 +8,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\ItemController;
 use App\Http\Controllers\SacolinhaController;
 use App\Http\Controllers\LiveController;
+use App\Http\Controllers\Admin\AdminSacolinhaController;
 
 // ===== ROTAS DE AUTENTICAÇÃO =====
 
@@ -116,4 +117,19 @@ Route::middleware('auth')->group(function () {
         Route::get('/sacolinhas/live/{liveId?}', [SacolinhaController::class, 'getBagsByLive']);
         Route::delete('/sacolinhas/remove', [SacolinhaController::class, 'removeItem']);
     });
+});
+
+// Rotas de administração de sacolinhas
+Route::prefix('admin')->middleware('auth')->group(function () {
+    // Rotas principais
+    Route::get('/sacolinhas', [AdminSacolinhaController::class, 'index'])->name('admin.sacolinhas.index');
+    Route::get('/sacolinhas/live/{live}', [AdminSacolinhaController::class, 'show'])->name('admin.sacolinhas.show');
+    Route::get('/sacolinhas/search-client', [AdminSacolinhaController::class, 'searchByClient'])->name('admin.sacolinhas.search-client');
+    
+    // Ações
+    Route::post('/sacolinhas/bulk-action', [AdminSacolinhaController::class, 'bulkAction'])->name('admin.sacolinhas.bulk-action');
+    Route::patch('/sacolinhas/{sacolinha}/status', [AdminSacolinhaController::class, 'updateStatus'])->name('admin.sacolinhas.update-status');
+    
+    // AJAX
+    Route::get('/sacolinhas/{sacolinha}/details', [AdminSacolinhaController::class, 'details'])->name('admin.sacolinhas.details');
 });
