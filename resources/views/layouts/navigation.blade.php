@@ -15,9 +15,7 @@
                     <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                         {{ __('Dashboard') }}
                     </x-nav-link>
-					<x-nav-link :href="route('nova.pagina')" :active="request()->routeIs('nova.pagina')">
-						{{ __('Nova Página') }}
-					</x-nav-link>
+
                 </div>
             </div>
 
@@ -37,9 +35,7 @@
                     </x-slot>
 
                     <x-slot name="content">
-                        <x-dropdown-link :href="route('profile.edit')">
-                            {{ __('Profile') }}
-                        </x-dropdown-link>
+
 
                         <!-- Authentication -->
                         <form method="POST" action="{{ route('logout') }}">
@@ -73,9 +69,6 @@
             <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                 {{ __('Dashboard') }}
             </x-responsive-nav-link>
-			<x-responsive-nav-link :href="route('nova.pagina')" :active="request()->routeIs('nova.pagina')">
-            {{ __('Nova Página') }}
-			</x-responsive-nav-link>
 
         </div>
 
@@ -87,10 +80,6 @@
             </div>
 
             <div class="mt-3 space-y-1">
-                <x-responsive-nav-link :href="route('profile.edit')">
-                    {{ __('Profile') }}
-                </x-responsive-nav-link>
-
                 <!-- Authentication -->
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf

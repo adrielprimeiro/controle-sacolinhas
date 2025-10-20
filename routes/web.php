@@ -133,3 +133,8 @@ Route::prefix('admin')->middleware('auth')->group(function () {
     // AJAX
     Route::get('/sacolinhas/{sacolinha}/details', [AdminSacolinhaController::class, 'details'])->name('admin.sacolinhas.details');
 });
+
+
+// routes/web.php
+Route::get('/admin/sacolinhas/export/{live}', [AdminSacolinhaController::class, 'export'])
+    ->name('admin.sacolinhas.export');
