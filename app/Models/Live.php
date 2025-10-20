@@ -64,4 +64,23 @@ class Live extends Model
     {
         return $query->whereDate('data', Carbon::today());
     }
+	
+	// Relacionamento com sacolinhas
+    public function sacolinhas()
+    {
+        return $this->hasMany(Sacolinhas::class, 'live_id');
+    }
+
+    // Accessor para nome (usando tipo_live)
+    public function getNameAttribute()
+    {
+        return $this->tipo_live;
+    }
+
+    // Accessor para data formatada
+    public function getFormattedDateAttribute()
+    {
+        return $this->data->format('d/m/Y');
+    }
+}
 }

@@ -62,6 +62,20 @@ class Sacolinhas extends Model
             'size' => $item->tamanho
         ];
     }
+	
+    // Accessor para badge do status
+    public function getStatusBadgeAttribute()
+    {
+        $badges = [
+            'pendente' => 'badge-warning',
+            'processando' => 'badge-info',
+            'concluido' => 'badge-success',
+            'cancelado' => 'badge-danger',
+            'entregue' => 'badge-success'
+        ];
+
+        return $badges[$this->status] ?? 'badge-secondary';
+    }
 
     // Scope para status específico
     public function scopeByStatus($query, $status)
@@ -74,4 +88,14 @@ class Sacolinhas extends Model
     {
         return $query->where('live_id', $liveId);
     }
+	
+    // Scope para busca por cliente
+    public function scopeByClient($query, $clientSearch)
+    {
+        return $query->whereHas('user', function ($q) use ($clientSearch) {
+            $q->where('name', 'like', "%{$clientSearch}%")
+              ->orWhere('email', 'like', "%{$clientSearch}%")
+              ->orWhere('id', $clientSearch);
+        });
+    }	
 }
