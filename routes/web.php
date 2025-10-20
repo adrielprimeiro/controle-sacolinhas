@@ -49,7 +49,7 @@ Route::post('/register', function (Request $request) {
     ]);
 
     Auth::login($user);
-    return redirect('/dashboard');
+    return redirect('/login');
 });
 
 Route::post('/logout', function (Request $request) {
