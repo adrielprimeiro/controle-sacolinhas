@@ -2,32 +2,54 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Carbon\Carbon;
 
 class Live extends Model
 {
     use HasFactory;
 
-    protected $table = 'live'; // Nome da tabela
-
+    protected $table = 'lives';
+    
     protected $fillable = [
-        'tipo_live',
         'data',
+        'tipo_live',
         'plataformas'
     ];
 
     protected $casts = [
-        'data' => 'date'
+        'data' => 'date',
     ];
 
-    // Accessor para converter string de plataformas em array
-    public function getPlataformasArrayAttribute()
+    // Accessor para tipo_live_formatado
+    public function getTipoLiveFormatadoAttribute()
     {
-        return $this->plataformas ? explode(',', $this->plataformas) : [];
+        $tipos = [
+            'loja-aberta' => 'Loja Aberta',
+            'leilao' => 'Leilão',
+            'precinho' => 'Precinho'
+        ];
+
+        return $tipos[$this->tipo_live] ?? $this->tipo_live;
     }
 
-    // Mutator para converter array em string
+    // Accessor para plataformas_array
+    public function getPlataformasArrayAttribute()
+    {
+        if (empty($this->plataformas)) {
+            return [];
+        }
+
+        // Se for string separada por vírgula
+        if (is_string($this->plataformas)) {
+            return explode(',', $this->plataformas);
+        }
+
+        return [];
+    }
+
+    // Mutator para plataformas
     public function setPlataformasAttribute($value)
     {
         if (is_array($value)) {
@@ -37,9 +59,9 @@ class Live extends Model
         }
     }
 
-    // Accessor para formatar tipo de live
-    public function getTipoLiveFormatadoAttribute()
+    // Scopes
+    public function scopeToday($query)
     {
-        return ucwords(str_replace('-', ' ', $this->tipo_live));
+        return $query->whereDate('data', Carbon::today());
     }
 }

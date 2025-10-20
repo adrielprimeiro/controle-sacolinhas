@@ -15,7 +15,7 @@ return new class extends Migration
 			$table->id();
 			$table->foreignId('user_id')->constrained('users')->onDelete('cascade'); // FK para tabela users
 			$table->foreignId('item_id')->constrained('items')->onDelete('cascade'); // FK para tabela items
-			$table->foreignId('live_id')->constrained('live')->onDelete('cascade'); // FK para tabela live
+			$table->foreignId('live_id')->constrained('lives')->onDelete('cascade'); // FK para tabela live
 			$table->dateTime('add_at'); // Data e hora
 			$table->integer('tray')->nullable(); // Numérico
 			$table->string('status'); // Texto curto

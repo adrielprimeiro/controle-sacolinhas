@@ -11,30 +11,45 @@ class LiveController extends Controller
 {
     public function index()
     {
-        // Buscar lives do dia atual
-        $lives = Live::whereDate('data', Carbon::today())
-                    ->orderBy('created_at', 'desc')
-                    ->get();
+        try {
+            // Buscar lives do dia atual
+            $lives = Live::whereDate('data', Carbon::today())
+                        ->orderBy('created_at', 'desc')
+                        ->get();
 
-        // Se for requisição AJAX, retornar JSON
-        if (request()->ajax()) {
-            return response()->json([
-                'success' => true,
-                'lives' => $lives->map(function($live) {
-                    return [
-                        'id' => $live->id,
-                        'tipo_live' => $live->tipo_live,
-                        'tipo_live_formatado' => $live->tipo_live_formatado,
-                        'data' => $live->data->format('d/m/Y'),
-                        'plataformas' => $live->plataformas_array,
-                        'plataformas_string' => $live->plataformas,
-                        'created_at' => $live->created_at->format('H:i:s')
-                    ];
-                })
-            ]);
+            // Se for requisição AJAX, retornar JSON
+            if (request()->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'lives' => $lives->map(function($live) {
+                        return [
+                            'id' => $live->id,
+                            'tipo_live' => $live->tipo_live,
+                            'tipo_live_formatado' => $live->tipo_live_formatado,
+                            'data' => $live->data->format('d/m/Y'),
+                            'plataformas' => $live->plataformas_array,
+                            'plataformas_string' => $live->plataformas,
+                            'created_at' => $live->created_at->format('H:i:s')
+                        ];
+                    })
+                ]);
+            }
+
+            return view('admin.live.index', compact('lives'));
+            
+        } catch (\Exception $e) {
+            \Log::error('Erro no LiveController: ' . $e->getMessage());
+            
+            if (request()->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                    'lives' => []
+                ]);
+            }
+            
+            return view('admin.live.index', ['lives' => collect()]);
         }
-
-        return view('admin.live.index', compact('lives'));
     }
 
     public function store(Request $request)
@@ -140,5 +155,74 @@ class LiveController extends Controller
             'success' => false,
             'message' => 'Nenhuma live ativa encontrada.'
         ]);
+    }
+
+    public function show($id)
+    {
+        try {
+            $live = Live::findOrFail($id);
+            
+            return response()->json([
+                'success' => true,
+                'live' => [
+                    'id' => $live->id,
+                    'tipo_live' => $live->tipo_live,
+                    'tipo_live_formatado' => $live->tipo_live_formatado,
+                    'data' => $live->data->format('d/m/Y'),
+                    'plataformas' => $live->plataformas_array,
+                    'plataformas_string' => $live->plataformas,
+                    'created_at' => $live->created_at->format('H:i:s')
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Live não encontrada.'
+            ], 404);
+        }
+    }
+
+    public function update(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'tipo_live' => 'sometimes|required|in:loja-aberta,leilao,precinho',
+            'plataformas' => 'sometimes|required|array|min:1',
+            'plataformas.*' => 'in:instagram,tiktok,youtube'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors(),
+                'message' => 'Dados inválidos.'
+            ], 422);
+        }
+
+        try {
+            $live = Live::findOrFail($id);
+            
+            $live->update($request->only(['tipo_live', 'plataformas']));
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Live atualizada com sucesso!',
+                'live' => [
+                    'id' => $live->id,
+                    'tipo_live' => $live->tipo_live,
+                    'tipo_live_formatado' => $live->tipo_live_formatado,
+                    'data' => $live->data->format('d/m/Y'),
+                    'plataformas' => $live->plataformas_array,
+                    'plataformas_string' => $live->plataformas,
+                    'created_at' => $live->created_at->format('H:i:s')
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erro ao atualizar live: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

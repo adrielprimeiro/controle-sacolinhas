@@ -26,8 +26,8 @@ class SacolinhaController extends Controller
                 'item_quantity' => 'required|integer|min:1'
             ]);
 
-            // CORRIGIDO: Buscar live mais recente de hoje (sem usar 'status')
-            $liveAtiva = DB::table('live')
+            // Buscar live mais recente de hoje (sem usar 'status')
+            $liveAtiva = DB::table('lives')
                           ->whereDate('created_at', today())
                           ->orderBy('created_at', 'desc')
                           ->first();
@@ -70,7 +70,7 @@ class SacolinhaController extends Controller
                     'obs' => $request->obs ?? null
                 ]);
                 
-                // CORRIGIDO: Adicionar ao array corretamente
+                //  Adicionar ao array corretamente
                 $sacolinhasArray[] = $sacolinha;
             }
 

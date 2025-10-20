@@ -1,44 +1,78 @@
-<x-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-            {{ __('Dashboard') }} - {{ auth()->user()->role_display ?? 'Cliente' }}
-        </h2>
-    </x-slot>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Sacolinhas</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card mt-5">
+                    <div class="card-header">
+                        <h4 class="mb-0">Entrar</h4>
+                    </div>
+                    <div class="card-body">
+                        @if ($errors->any())
+                            <div class="alert alert-danger">
+                                <ul class="mb-0">
+                                    @foreach ($errors->all() as $error)
+                                        <li>{{ $error }}</li>
+                                    @endforeach
+                                </ul>
+                            </div>
+                        @endif
 
-    <div class="py-12">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-            <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-                <div class="p-6 text-gray-900">
-                    <h3 class="text-lg font-semibold mb-4">Bem-vindo, {{ auth()->user()->name }}!</h3>
-                    
-                    @if(auth()->user()->isAdmin())
-                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                            <h4 class="text-lg font-semibold text-blue-800 mb-2">🛠️ Área Administrativa</h4>
-                            <p class="text-blue-700 mb-3">Você tem acesso às funcionalidades administrativas.</p>
-                            <a href="{{ route('items.index') }}" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-                                📦 Gerenciar Itens
-                            </a>
-                        </div>
-                    @else
-                        <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-                            <h4 class="text-lg font-semibold text-green-800 mb-2">🛒 Área do Cliente</h4>
-                            <p class="text-green-700 mb-3">Bem-vindo ao sistema de delivery!</p>
-                            <button class="bg-gray-400 text-white font-bold py-2 px-4 rounded cursor-not-allowed" disabled>
-                                🍽️ Ver Cardápio (Em breve)
-                            </button>
-                        </div>
-                    @endif
+                        <form method="POST" action="{{ route('login') }}">
+                            @csrf
 
-                    <!-- Informações do Usuário -->
-                    <div class="mt-6 bg-gray-50 rounded-lg p-4">
-                        <h4 class="font-semibold text-gray-800 mb-2">Suas Informações:</h4>
-                        <p><strong>Nome:</strong> {{ auth()->user()->name }}</p>
-                        <p><strong>Email:</strong> {{ auth()->user()->email }}</p>
-                        <p><strong>Tipo de Conta:</strong> {{ auth()->user()->role_display }}</p>
-                        <p><strong>Membro desde:</strong> {{ auth()->user()->created_at->format('d/m/Y') }}</p>
+                            <div class="mb-3">
+                                <label for="email" class="form-label">Email</label>
+                                <input type="email" 
+                                       class="form-control @error('email') is-invalid @enderror" 
+                                       id="email" 
+                                       name="email" 
+                                       value="{{ old('email') }}" 
+                                       required>
+                                @error('email')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="password" class="form-label">Senha</label>
+                                <input type="password" 
+                                       class="form-control @error('password') is-invalid @enderror" 
+                                       id="password" 
+                                       name="password" 
+                                       required>
+                                @error('password')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="remember" name="remember">
+                                <label class="form-check-label" for="remember">
+                                    Lembrar de mim
+                                </label>
+                            </div>
+
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary">Entrar</button>
+                            </div>
+
+                            <div class="text-center mt-3">
+                                <p>Não tem uma conta? <a href="{{ route('register') }}">Registre-se</a></p>
+                                <p><a href="{{ route('password.request') }}">Esqueceu sua senha?</a></p>
+                            </div>
+                        </form>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-</x-app-layout>
+</body>
+</html>
