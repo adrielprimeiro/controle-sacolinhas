@@ -83,4 +83,3 @@ class Live extends Model
         return $this->data->format('d/m/Y');
     }
 }
-}
