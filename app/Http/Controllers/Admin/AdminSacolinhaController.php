@@ -117,7 +117,7 @@ class AdminSacolinhaController extends Controller
         
         $headers = [
             'Content-Type' => 'text/csv',
-            'Content-Disposition' => "attachment; filename="{$filename}"",
+            'Content-Disposition' => "attachment; filename='{$filename}'",
         ];
 
         $callback = function() use ($sacolinhas) {
