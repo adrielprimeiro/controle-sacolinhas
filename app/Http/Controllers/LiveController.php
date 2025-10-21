@@ -9,48 +9,50 @@ use Carbon\Carbon;
 
 class LiveController extends Controller
 {
-    public function index()
-    {
-        try {
-            // Buscar lives do dia atual
-            $lives = Live::whereDate('data', Carbon::today())
-                        ->orderBy('created_at', 'desc')
-                        ->get();
+	public function index()
+	{
+		try {
+			// Buscar lives do dia atual
+			$lives = Live::whereDate('data', Carbon::today())
+						->orderBy('created_at', 'desc')
+						->get();
 
-            // Se for requisição AJAX, retornar JSON
-            if (request()->ajax()) {
-                return response()->json([
-                    'success' => true,
-                    'lives' => $lives->map(function($live) {
-                        return [
-                            'id' => $live->id,
-                            'tipo_live' => $live->tipo_live,
-                            'tipo_live_formatado' => $live->tipo_live_formatado,
-                            'data' => $live->data->format('d/m/Y'),
-                            'plataformas' => $live->plataformas_array,
-                            'plataformas_string' => $live->plataformas,
-                            'created_at' => $live->created_at->format('H:i:s')
-                        ];
-                    })
-                ]);
-            }
+			// Se for requisição AJAX, retornar JSON
+			if (request()->ajax()) {
+				return response()->json([
+					'success' => true,
+					'lives' => $lives->map(function($live) {
+						return [
+							'id' => $live->id,
+							'tipo_live' => $live->tipo_live,
+							'tipo_live_formatado' => $live->tipo_live_formatado,
+							'data' => $live->data->format('d/m/Y'),
+							'plataformas' => $live->plataformas_array,
+							'plataformas_string' => $live->plataformas,
+							'created_at' => $live->created_at->format('H:i:s')
+						];
+					})
+				]);
+			}
 
-            return view('admin.live.index', compact('lives'));
-            
-        } catch (\Exception $e) {
-            \Log::error('Erro no LiveController: ' . $e->getMessage());
-            
-            if (request()->ajax()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => $e->getMessage(),
-                    'lives' => []
-                ]);
-            }
-            
-            return view('admin.live.index', ['lives' => collect()]);
-        }
-    }
+			// ✅ CORRIGIDO:
+			return view('lives.index', compact('lives'));
+			
+		} catch (\Exception $e) {
+			\Log::error('Erro no LiveController: ' . $e->getMessage());
+			
+			if (request()->ajax()) {
+				return response()->json([
+					'success' => false,
+					'message' => $e->getMessage(),
+					'lives' => []
+				]);
+			}
+			
+			// ✅ CORRIGIDO:
+			return view('lives.index', ['lives' => collect()]);
+		}
+	}
 
     public function store(Request $request)
     {
@@ -116,12 +118,12 @@ class LiveController extends Controller
     public function destroy($id)
     {
         try {
-            $live = Live::findOrFail($id);
-            $live->delete();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Live encerrada com sucesso!'
+			$live = Live::findOrFail($id);
+			$live->update(['ativo' => 0]);
+			
+			return response()->json([
+				'success' => true,
+				'message' => 'Live encerrada com sucesso!'
             ]);
 
         } catch (\Exception $e) {

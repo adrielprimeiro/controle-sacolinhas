@@ -1,14 +1,12 @@
 <?php
-// app/Http/Controllers/Admin/AdminSacolinhaController.php
 
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Live;
-use App\Models\Sacolinhas;
 use App\Models\User;
+use App\Models\Sacolinhas;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class AdminSacolinhaController extends Controller
 {
@@ -16,181 +14,81 @@ class AdminSacolinhaController extends Controller
     {
         $query = Live::withCount('sacolinhas');
 
+        // Filtro por busca geral
         if ($request->filled('search')) {
-            $query->where(function ($q) use ($request) {
-                $q->where('tipo_live', 'like', "%{$request->search}%")
-                  ->orWhere('data', 'like', "%{$request->search}%")
-                  ->orWhere('plataformas', 'like', "%{$request->search}%");
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('tipo_live', 'LIKE', "%{$search}%")
+                  ->orWhere('data', 'LIKE', "%{$search}%")
+                  ->orWhere('plataformas', 'LIKE', "%{$search}%");
             });
         }
 
-        $lives = $query->orderBy('data', 'desc')->paginate(15);
+        // Filtro por status
+        if ($request->filled('status')) {
+            if ($request->status === 'ativa') {
+                $query->where('status', 'ativa');
+            } elseif ($request->status === 'encerrada') {
+                $query->where('status', '!=', 'ativa');
+            }
+        }
+
+        // Filtro por tipo
+        if ($request->filled('tipo')) {
+            $query->where('tipo_live', $request->tipo);
+        }
+
+        // Ordenar por data mais recente primeiro
+        $lives = $query->orderBy('data', 'desc')
+                      ->orderBy('created_at', 'desc')
+                      ->paginate(15);
 
         return view('admin.sacolinhas.index', compact('lives'));
     }
 
-    public function show(Live $live, Request $request)
+    public function searchClient(Request $request)
     {
-        $query = $live->sacolinhas()->with(['user', 'item']);
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
+        if (!$request->filled('client_search')) {
+            return redirect()->route('admin.sacolinhas.index');
         }
 
-        if ($request->filled('client_search')) {
-            $query->whereHas('user', function ($q) use ($request) {
-                $q->where('name', 'like', "%{$request->client_search}%")
-                  ->orWhere('email', 'like', "%{$request->client_search}%");
-            });
-        }
-
-        $sacolinhas = $query->orderBy('add_at', 'desc')->paginate(20);
-
-        // Estatísticas da live
-        $stats = [
-            'total_sacolinhas' => $live->sacolinhas()->count(),
-            'valor_total' => $live->sacolinhas()->with('item')->get()->sum(function($s) {
-                return $s->item ? $s->item->preco : 0;
-            }),
-            'status_counts' => $live->sacolinhas()
-                ->select('status', DB::raw('count(*) as count'))
-                ->groupBy('status')
-                ->pluck('count', 'status')
-                ->toArray(),
-            'clientes_unicos' => $live->sacolinhas()->distinct('user_id')->count('user_id')
-        ];
-
-        return view('admin.sacolinhas.show', compact('live', 'sacolinhas', 'stats'));
-    }
-
-    public function searchByClient(Request $request)
-    {
-        $request->validate([
-            'client_search' => 'required|string|min:2'
-        ]);
-
-        $sacolinhas = Sacolinhas::with(['user', 'live', 'item'])
-            ->whereHas('user', function ($q) use ($request) {
-                $q->where('name', 'like', "%{$request->client_search}%")
-                  ->orWhere('email', 'like', "%{$request->client_search}%")
-                  ->orWhere('id', $request->client_search);
-            })
-            ->orderBy('add_at', 'desc')
-            ->paginate(20);
-
-        return view('admin.sacolinhas.client-search', compact('sacolinhas'));
-    }
-
-    public function bulkAction(Request $request)
-    {
-        $request->validate([
-            'action' => 'required|in:delete,export,update_status',
-            'sacolinha_ids' => 'required|array',
-            'sacolinha_ids.*' => 'exists:sacolinhas,id',
-            'status' => 'required_if:action,update_status|in:pendente,processando,concluido,cancelado,entregue'
-        ]);
-
-        $sacolinhas = Sacolinhas::whereIn('id', $request->sacolinha_ids);
-
-        switch ($request->action) {
-            case 'delete':
-                $count = $sacolinhas->count();
-                $sacolinhas->delete();
-                return back()->with('success', "Deletadas {$count} sacolinhas com sucesso.");
-
-            case 'update_status':
-                $count = $sacolinhas->update(['status' => $request->status]);
-                return back()->with('success', "Status atualizado para {$count} sacolinhas.");
-
-            case 'export':
-                return $this->exportSacolinhas($request->sacolinha_ids);
-        }
-    }
-
-    private function exportSacolinhas($ids)
-    {
-        $sacolinhas = Sacolinhas::with(['user', 'live', 'item'])
-            ->whereIn('id', $ids)
-            ->get();
-
-        $filename = 'sacolinhas_' . now()->format('Y-m-d_H-i-s') . '.csv';
+        $search = $request->client_search;
         
-        $headers = [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => "attachment; filename='{$filename}'",
-        ];
+        // Buscar lives que têm sacolinhas de clientes que correspondem à busca
+        $query = Live::withCount('sacolinhas')
+            ->whereHas('sacolinhas', function($q) use ($search) {
+                $q->whereHas('user', function($userQuery) use ($search) {
+                    $userQuery->where('name', 'LIKE', "%{$search}%")
+                             ->orWhere('email', 'LIKE', "%{$search}%")
+                             ->orWhere('id', $search);
+                });
+            });
 
-        $callback = function() use ($sacolinhas) {
-            $file = fopen('php://output', 'w');
-            
-            // Header do CSV
-            fputcsv($file, [
-                'ID', 'Live', 'Data Live', 'Cliente', 'Email Cliente', 
-                'Produto', 'Preço', 'Status', 'Bandeja', 'Observações', 
-                'Data Adição'
-            ]);
+        $lives = $query->orderBy('data', 'desc')
+                      ->orderBy('created_at', 'desc')
+                      ->paginate(15);
 
-            foreach ($sacolinhas as $sacolinha) {
-                fputcsv($file, [
-                    $sacolinha->id,
-                    $sacolinha->live->tipo_live ?? 'N/A',
-                    $sacolinha->live->data ? $sacolinha->live->data->format('d/m/Y') : 'N/A',
-                    $sacolinha->user->name ?? 'N/A',
-                    $sacolinha->user->email ?? 'N/A',
-                    $sacolinha->item->nome_do_produto ?? 'N/A',
-                    $sacolinha->item ? 'R$ ' . number_format($sacolinha->item->preco, 2, ',', '.') : 'N/A',
-                    $sacolinha->status,
-                    $sacolinha->tray,
-                    $sacolinha->obs,
-                    $sacolinha->add_at ? $sacolinha->add_at->format('d/m/Y H:i') : 'N/A'
-                ]);
-            }
+        $message = $lives->total() > 0 
+            ? "Encontradas {$lives->total()} lives com sacolinhas do cliente pesquisado."
+            : "Nenhuma live encontrada com sacolinhas do cliente pesquisado.";
 
-            fclose($file);
-        };
-
-        return response()->stream($callback, 200, $headers);
+        return view('admin.sacolinhas.index', compact('lives'))
+               ->with($lives->total() > 0 ? 'success' : 'info', $message);
     }
 
-    public function updateStatus(Sacolinha $sacolinha, Request $request)
+    public function show(Live $live)
     {
-        $request->validate([
-            'status' => 'required|in:pendente,processando,concluido,cancelado,entregue',
-            'obs' => 'nullable|string|max:1000',
-            'tray' => 'nullable|integer'
-        ]);
-
-        $sacolinha->update([
-            'status' => $request->status,
-            'obs' => $request->obs,
-            'tray' => $request->tray
-        ]);
-
-        return back()->with('success', 'Status da sacolinha atualizado com sucesso!');
+        // Usar o método da model para obter sacolinhas agrupadas
+        $sacolinhasPorUsuario = $live->getSacolinhasByClient();
+        $totals = $live->getTotals();
+        
+        return view('admin.sacolinhas.show', compact('live', 'sacolinhasPorUsuario', 'totals'));
     }
 
-    public function details(Sacolinhas $sacolinha)
+    public function export(Live $live)
     {
-        $sacolinha->load(['user', 'live', 'item']);
-
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'id' => $sacolinha->id,
-                'client' => [
-                    'name' => $sacolinha->user->name ?? 'N/A',
-                    'email' => $sacolinha->user->email ?? 'N/A',
-                ],
-                'live' => [
-                    'name' => $sacolinha->live->tipo_live ?? 'N/A',
-                    'date' => $sacolinha->live->data ? $sacolinha->live->data->format('d/m/Y') : 'N/A',
-                ],
-                'item' => $sacolinha->item_data,
-                'status' => $sacolinha->status,
-                'tray' => $sacolinha->tray,
-                'obs' => $sacolinha->obs,
-                'add_at' => $sacolinha->add_at ? $sacolinha->add_at->format('d/m/Y H:i') : 'N/A',
-            ]
-        ]);
+        // Implementar exportação (CSV, Excel, etc.)
+        return redirect()->route('admin.sacolinhas.show', $live)
+                        ->with('info', 'Funcionalidade de exportação será implementada em breve.');
     }
 }
