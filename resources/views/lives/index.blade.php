@@ -59,7 +59,7 @@
             <!-- Sidebar -->
             <div class="col-md-2 sidebar text-white p-0">
                 <div class="p-3">
-                    <h4>Admin</h4>
+                    <h4><i class="fas fa-shopping-bag"></i> Admin</h4>
                     <hr>
                     <ul class="nav flex-column">
                         <li class="nav-item">
@@ -68,7 +68,12 @@
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link text-white" href="{{ route('bags.index') }}"> <!-- Novo item no menu -->
+                            <a class="nav-link text-white active" href="{{ route('admin.sacolinhas.index') }}">
+                                <i class="fas fa-shopping-bag"></i> Sacolinhas
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-white" href="{{ route('bags.index') }}">
                                 <i class="fas fa-broadcast-tower"></i> Live
                             </a>
                         </li>
