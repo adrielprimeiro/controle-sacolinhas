@@ -152,21 +152,24 @@ Route::middleware('auth')->group(function () {
             'destroy' => 'items.destroy',
         ]);
         
-        // Admin Sacolinhas
-        Route::prefix('sacolinhas')->name('sacolinhas.')->group(function () {
-            // Rotas principais
-            Route::get('/', [AdminSacolinhaController::class, 'index'])->name('index');
-            Route::get('/live/{live}', [AdminSacolinhaController::class, 'show'])->name('show');
-            Route::get('/search-client', [AdminSacolinhaController::class, 'searchByClient'])->name('search-client');
-            Route::get('/export/{live}', [AdminSacolinhaController::class, 'export'])->name('export');
-            
-            // Ações
-            Route::post('/bulk-action', [AdminSacolinhaController::class, 'bulkAction'])->name('bulk-action');
-            Route::patch('/{sacolinha}/status', [AdminSacolinhaController::class, 'updateStatus'])->name('update-status');
-            
-            // AJAX
-            Route::get('/{sacolinha}/details', [AdminSacolinhaController::class, 'details'])->name('details');
-        });
+		// Admin Sacolinhas
+		Route::prefix('sacolinhas')->name('sacolinhas.')->group(function () {
+			// Rotas principais
+			Route::get('/', [AdminSacolinhaController::class, 'index'])->name('index');
+			Route::get('/live/{live}', [AdminSacolinhaController::class, 'show'])->name('show');
+			Route::get('/search-client', [AdminSacolinhaController::class, 'searchByClient'])->name('search-client');
+			Route::get('/export/{live}', [AdminSacolinhaController::class, 'export'])->name('export');
+			
+			// ✅ ADICIONAR ESTA LINHA
+			Route::get('/live/{live}/sacolinhas', [AdminSacolinhaController::class, 'getSacolinhasByLive'])->name('by-live');
+			
+			// Ações
+			Route::post('/bulk-action', [AdminSacolinhaController::class, 'bulkAction'])->name('bulk-action');
+			Route::patch('/{sacolinha}/status', [AdminSacolinhaController::class, 'updateStatus'])->name('update-status');
+			
+			// AJAX
+			Route::get('/{sacolinha}/details', [AdminSacolinhaController::class, 'details'])->name('details');
+		});
     });
 });
 
@@ -176,3 +179,7 @@ Route::middleware('auth')->group(function () {
 Route::get('/lives', function () {
     return redirect()->route('bags.index');
 });
+
+// Rota para buscar sacolinhas de uma live específica (AJAX)
+Route::get('/admin/sacolinhas/live/{live}/sacolinhas', [SacolinhaController::class, 'getSacolinhasByLive'])
+    ->name('admin.sacolinhas.by-live');
