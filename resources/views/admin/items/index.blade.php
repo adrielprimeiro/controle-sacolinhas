@@ -38,21 +38,16 @@
             <!-- Sidebar -->
             <div class="col-md-2 sidebar text-white p-0">
                 <div class="p-3">
-                    <h4><i class="fas fa-shopping-bag"></i> Admin</h4>
+                    <h4> Admin</h4>
                     <hr>
                     <ul class="nav flex-column">
                         <li class="nav-item">
-                            <a class="nav-link text-white" href="{{ route('items.index') }}">
+                            <a class="nav-link text-white active" href="{{ route('items.index') }}">
                                 <i class="fas fa-box"></i> Itens
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link text-white active" href="{{ route('admin.sacolinhas.index') }}">
-                                <i class="fas fa-shopping-bag"></i> Sacolinhas
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-white" href="{{ route('bags.index') }}">
+                            <a class="nav-link text-white" href="{{ route('bags.index') }}"> <!-- Novo item no menu -->
                                 <i class="fas fa-broadcast-tower"></i> Live
                             </a>
                         </li>
@@ -64,6 +59,7 @@
                     </ul>
                 </div>
             </div>
+
             <!-- Main Content -->
             <div class="col-md-10 p-4">
                 <!-- Header -->
