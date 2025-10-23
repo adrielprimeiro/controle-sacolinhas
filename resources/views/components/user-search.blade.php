@@ -5,7 +5,7 @@
                class="form-control user-search-input" 
                data-search-input="true"
                placeholder="{{ $placeholder ?? 'Buscar usuário...' }}" 
-               autocomplete="off"
+               autocomplete="new-password"
                data-bs-toggle="dropdown">
         
         <input type="hidden" 
@@ -236,9 +236,6 @@ function initUserSearch(wrapper) {
         hideDropdown();
         currentFocus = -1;
         searchResults = [];
-        
-        // Disparar evento customizado
-        wrapper.dispatchEvent(new CustomEvent('userCleared'));
     }
 
     function updateFocus(items) {

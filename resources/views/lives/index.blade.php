@@ -232,7 +232,17 @@
                         </form>
                     </div>
                 </div>
-
+				<!-- NOVO CARD DE RESUMO -->
+				<div class="card mb-4" id="bags-summary-card" style="display: none;">
+					<div class="card-body py-2 d-flex justify-content-between align-items-center">
+						<div>
+							<h6 class="mb-0 text-muted">Total de Sacolas: <span class="fw-bold text-primary" id="total-bags-count">0</span></h6>
+						</div>
+						<div>
+							<h6 class="mb-0 text-muted">Valor Total: <span class="fw-bold text-success" id="total-bags-value">R\$ 0,00</span></h6>
+						</div>
+					</div>
+				</div>
                 <!-- Lista de Sacolinhas -->
                 <div class="card">
                     <div class="card-header">
@@ -478,32 +488,51 @@
 		});
 	}
 
-	// Função para carregar sacolas
-	function carregarSacolas() {
-		if (!liveAtiva) {
-			document.getElementById('bags-list').innerHTML = `
-				<div class="text-center text-muted py-5">
-					<i class="fas fa-shopping-bag fa-3x mb-3 opacity-50"></i>
-					<h5>Nenhuma sacola criada ainda</h5>
-					<p>Inicie uma live e adicione itens às sacolas dos clientes.</p>
-				</div>
-			`;
-			return;
-		}
+    // Função para carregar sacolas
+    function carregarSacolas() {
+        if (!liveAtiva) {
+            document.getElementById('bags-list').innerHTML = `
+                <div class="text-center text-muted py-5">
+                    <i class="fas fa-shopping-bag fa-3x mb-3 opacity-50"></i>
+                    <h5>Nenhuma sacola criada ainda</h5>
+                    <p>Inicie uma live e adicione itens às sacolas dos clientes.</p>
+                </div>
+            `;
+            document.getElementById('bags-summary-card').style.display = 'none'; // ESCONDE O RESUMO
+            return;
+        }
 
-		fetch(`/api/sacolinhas/live/${liveAtiva.id}`)
-			.then(response => response.json())
-			.then(data => {
-				if (data.success) {
-					exibirSacolas(data.data);
-				} else {
-					console.error('Erro ao carregar sacolas:', data.message);
-				}
-			})
-			.catch(error => {
-				console.error('Erro:', error);
-			});
-	}
+        fetch(`/api/sacolinhas/live/${liveAtiva.id}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    exibirSacolas(data.data);
+                } else {
+                    console.error('Erro ao carregar sacolas:', data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Erro:', error);
+            });
+
+        // NOVA CHAMADA PARA CARREGAR ESTATÍSTICAS
+        fetch(`/api/sacolinhas/stats/${liveAtiva.id}`)
+            .then(response => response.json())
+            .then(statsData => {
+                if (statsData.success) {
+                    document.getElementById('total-bags-count').textContent = statsData.data.total_bags;
+                    document.getElementById('total-bags-value').textContent = statsData.data.formatted_total_value;
+                    document.getElementById('bags-summary-card').style.display = 'block'; // MOSTRA O CARD
+                } else {
+                    console.error('Erro ao carregar estatísticas:', statsData.message);
+                    document.getElementById('bags-summary-card').style.display = 'none'; // ESCONDE SE HOUVER ERRO
+                }
+            })
+            .catch(error => {
+                console.error('Erro ao carregar estatísticas:', error);
+                document.getElementById('bags-summary-card').style.display = 'none'; // ESCONDE SE HOUVER ERRO
+            });
+    }
 
 	// Função para exibir sacolas
 	function exibirSacolas(bags) {
@@ -705,45 +734,47 @@
 	}
 
 	// Função para atualizar interface após encerrar live
-	function atualizarInterfaceAposEncerrar() {
-		const livesContainer = document.getElementById('lives-container');
-		livesContainer.innerHTML = `
-			<div class="text-center text-muted">
-				<i class="fas fa-broadcast-tower fa-3x mb-3 opacity-50"></i>
-				<p>Nenhuma live ativa no momento.</p>
-				<small>Clique em "Nova Live" para começar uma transmissão.</small>
-			</div>
-		`;
-		
-		atualizarEstadoBotao();
-		
-		const bagsContainer = document.getElementById('bags-list');
-		bagsContainer.innerHTML = `
-			<div class="text-center text-muted py-5">
-				<i class="fas fa-shopping-bag fa-3x mb-3 opacity-50"></i>
-				<h5>Nenhuma sacola criada ainda</h5>
-				<p>Inicie uma live e adicione itens às sacolas dos clientes.</p>
-			</div>
-		`;
-		
-		const filterCard = document.getElementById('filter-card');
-		filterCard.classList.add('card-disabled');
-		
-		const form = document.getElementById('add-item-form');
-		if (form) {
-			form.reset();
-			
-			const userWrapper = document.querySelector('[data-user-search="true"]');
-			if (userWrapper) {
-				userWrapper.dispatchEvent(new CustomEvent('userCleared'));
-			}
-			
-			const itemWrapper = document.querySelector('[data-item-search="true"]');
-			if (itemWrapper) {
-				itemWrapper.dispatchEvent(new CustomEvent('itemCleared'));
-			}
-		}
-	}
+    function atualizarInterfaceAposEncerrar() {
+        const livesContainer = document.getElementById('lives-container');
+        livesContainer.innerHTML = `
+            <div class="text-center text-muted">
+                <i class="fas fa-broadcast-tower fa-3x mb-3 opacity-50"></i>
+                <p>Nenhuma live ativa no momento.</p>
+                <small>Clique em "Nova Live" para começar uma transmissão.</small>
+            </div>
+        `;
+
+        atualizarEstadoBotao();
+
+        const bagsContainer = document.getElementById('bags-list');
+        bagsContainer.innerHTML = `
+            <div class="text-center text-muted py-5">
+                <i class="fas fa-shopping-bag fa-3x mb-3 opacity-50"></i>
+                <h5>Nenhuma sacola criada ainda</h5>
+                <p>Inicie uma live e adicione itens às sacolas dos clientes.</p>
+            </div>
+        `;
+
+        document.getElementById('bags-summary-card').style.display = 'none'; // ESCONDE O CARD DE RESUMO
+
+        const filterCard = document.getElementById('filter-card');
+        filterCard.classList.add('card-disabled');
+
+        const form = document.getElementById('add-item-form');
+        if (form) {
+            form.reset();
+
+            const userWrapper = document.querySelector('[data-user-search="true"]');
+            if (userWrapper) {
+                userWrapper.dispatchEvent(new CustomEvent('userCleared'));
+            }
+
+            const itemWrapper = document.querySelector('[data-item-search="true"]');
+            if (itemWrapper) {
+                itemWrapper.dispatchEvent(new CustomEvent('itemCleared'));
+            }
+        }
+    }
 
 	// Função para remover um item
 	function removerUmItem(itemId, userId) {

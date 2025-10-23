@@ -15,7 +15,6 @@ class Sacolinhas extends Model
         'user_id',
         'item_id',
         'live_id',
-        'quantity',
         'price',
         'add_at',
         'tray',
@@ -25,7 +24,6 @@ class Sacolinhas extends Model
 
     protected $casts = [
         'add_at' => 'datetime',
-        'quantity' => 'integer',
         'price' => 'decimal:2'
     ];
 
@@ -48,6 +46,11 @@ class Sacolinhas extends Model
     // Accessor para dados do item da tabela items
     public function getItemDataAttribute()
     {
+		// É mais eficiente usar o relacionamento 'item()' diretamente se já carregado
+        // ou carregar o item se não estiver.
+        // Se você já tem o relacionamento item(), pode fazer:
+        // return $this->item ? $this->item->toArray() : null;
+        // Ou manter a sua lógica atual se preferir carregar sob demanda.
         $item = \DB::table('items')->where('id', $this->item_id)->first();
         
         if (!$item) {
@@ -188,20 +191,19 @@ class Sacolinhas extends Model
         return $query->whereBetween('add_at', [$startDate, $endDate]);
     }
 
-    // Método estático para calcular totais por live
+    // Método estático para calcular totais por live (AJUSTADO)
     public static function getTotalsByLive($liveId)
     {
         return self::where('live_id', $liveId)
             ->selectRaw('
-                COUNT(*) as total_items,
-                SUM(quantity) as total_quantity,
-                SUM(price * quantity) as total_value,
+                COUNT(*) as total_items,           -- Cada registro é um item
+                SUM(price) as total_value,         -- Soma dos preços dos itens
                 COUNT(DISTINCT user_id) as total_clients
             ')
             ->first();
     }
 
-    // Método estático para agrupar por cliente em uma live
+    // Método estático para agrupar por cliente em uma live (AJUSTADO)
     public static function getByClientInLive($liveId)
     {
         return self::with(['user', 'item'])
@@ -210,9 +212,9 @@ class Sacolinhas extends Model
             ->groupBy('user_id')
             ->map(function ($sacolinhas) {
                 $user = $sacolinhas->first()->user;
-                $totalValue = $sacolinhas->sum('total_price');
-                $totalQuantity = $sacolinhas->sum('quantity');
-                
+                $totalValue = $sacolinhas->sum('price'); // Soma dos preços dos itens
+                $totalQuantity = $sacolinhas->count();   // Contagem de itens
+
                 return [
                     'user' => $user,
                     'items' => $sacolinhas,

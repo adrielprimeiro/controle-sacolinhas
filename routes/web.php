@@ -59,7 +59,6 @@ Route::post('/register', function (Request $request) {
         'email' => 'required|string|email|max:255|unique:users',
         'password' => 'required|string|min:8|confirmed',
     ]);
-
     $user = \App\Models\User::create([
         'name' => $request->name,
         'email' => $request->email,
@@ -84,23 +83,22 @@ Route::get('/password/reset', function () {
 // ===== ROTAS PROTEGIDAS =====
 
 Route::middleware('auth')->group(function () {
-    
+
     // ===== DASHBOARD =====
     Route::get('/dashboard', function () {
         return view('dashboard');
     })->name('dashboard');
-    
+
     Route::get('/home', function () {
         return redirect('/dashboard');
     })->name('home');
-
-    // ===== ITEMS =====
+// ===== ITEMS =====
     Route::resource('items', ItemController::class);
-    
+
     // ===== LIVES =====
     Route::resource('lives', LiveController::class)->except(['create', 'edit']);
     Route::get('/bags', [LiveController::class, 'index'])->name('bags.index');
-    
+
     // ===== SACOLINHAS =====
     // Rotas principais
     Route::get('/sacolinhas', [SacolinhaController::class, 'index'])->name('sacolinhas.index');
@@ -108,39 +106,40 @@ Route::middleware('auth')->group(function () {
     Route::get('/sacolinhas/{sacolinha}', [SacolinhaController::class, 'show'])->name('sacolinhas.show');
     Route::put('/sacolinhas/{sacolinha}', [SacolinhaController::class, 'update'])->name('sacolinhas.update');
     Route::delete('/sacolinhas/{sacolinha}', [SacolinhaController::class, 'destroy'])->name('sacolinhas.destroy');
-    
+
     // Ações específicas de sacolinhas
     Route::post('/sacolinhas/close-live', [SacolinhaController::class, 'closeLive'])->name('sacolinhas.close-live');
-    
+
     // ===== API ROUTES =====
     Route::prefix('api')->name('api.')->group(function () {
-        
+
         // Users API
         Route::get('/users/search', [UserController::class, 'search'])->name('users.search');
-        
+
         // Items API
         Route::get('/items/search', [ItemController::class, 'search'])->name('items.search');
-        
+
         // Sacolinhas API
         Route::prefix('sacolinhas')->name('sacolinhas.')->group(function () {
             // Lives
             Route::get('/live', [SacolinhaController::class, 'getActiveLive'])->name('active-live');
             Route::post('/live', [SacolinhaController::class, 'createLive'])->name('create-live');
             Route::get('/live/{liveId?}', [SacolinhaController::class, 'getBagsByLive'])->name('live');
-            
+
             // Ações com itens
-            Route::delete('/remove', [SacolinhaController::class, 'removeItem'])->name('remove');
+            Route::delete('/item/{sacolinha}', [SacolinhaController::class, 'destroySacolinhaItem'])->name('destroy-item'); // NOVA ROTA
+            // Route::delete('/remove', [SacolinhaController::class, 'removeItem'])->name('remove'); // REMOVA OU REAPROVEITE ESTA ROTA
             Route::delete('/clear', [SacolinhaController::class, 'clearClientBag'])->name('clear');
             Route::patch('/status', [SacolinhaController::class, 'updateItemStatus'])->name('status');
-            
+
             // Estatísticas
             Route::get('/stats/{liveId?}', [SacolinhaController::class, 'getLiveStats'])->name('stats');
         });
     });
-    
+
     // ===== ADMIN ROUTES =====
     Route::prefix('admin')->name('admin.')->group(function () {
-        
+
         // Admin Items
         Route::resource('items', ItemController::class)->names([
             'index' => 'items.index',
@@ -151,28 +150,27 @@ Route::middleware('auth')->group(function () {
             'update' => 'items.update',
             'destroy' => 'items.destroy',
         ]);
-        
-		// Admin Sacolinhas
-		Route::prefix('sacolinhas')->name('sacolinhas.')->group(function () {
-			// Rotas principais
-			Route::get('/', [AdminSacolinhaController::class, 'index'])->name('index');
-			Route::get('/live/{live}', [AdminSacolinhaController::class, 'show'])->name('show');
-			Route::get('/search-client', [AdminSacolinhaController::class, 'searchByClient'])->name('search-client');
-			Route::get('/export/{live}', [AdminSacolinhaController::class, 'export'])->name('export');
-			
-			// ✅ ADICIONAR ESTA LINHA
-			Route::get('/live/{live}/sacolinhas', [AdminSacolinhaController::class, 'getSacolinhasByLive'])->name('by-live');
-			
-			// Ações
-			Route::post('/bulk-action', [AdminSacolinhaController::class, 'bulkAction'])->name('bulk-action');
-			Route::patch('/{sacolinha}/status', [AdminSacolinhaController::class, 'updateStatus'])->name('update-status');
-			
-			// AJAX
-			Route::get('/{sacolinha}/details', [AdminSacolinhaController::class, 'details'])->name('details');
-		});
+
+        // Admin Sacolinhas
+        Route::prefix('sacolinhas')->name('sacolinhas.')->group(function () {
+            // Rotas principais
+            Route::get('/', [AdminSacolinhaController::class, 'index'])->name('index');
+            Route::get('/live/{live}', [AdminSacolinhaController::class, 'show'])->name('show');
+            Route::get('/search-client', [AdminSacolinhaController::class, 'searchByClient'])->name('search-client');
+            Route::get('/export/{live}', [AdminSacolinhaController::class, 'export'])->name('export');
+
+            // ✅ ADICIONAR ESTA LINHA
+            Route::get('/live/{live}/sacolinhas', [AdminSacolinhaController::class, 'getSacolinhasByLive'])->name('by-live');
+
+            // Ações
+            Route::post('/bulk-action', [AdminSacolinhaController::class, 'bulkAction'])->name('bulk-action');
+            Route::patch('/{sacolinha}/status', [AdminSacolinhaController::class, 'updateStatus'])->name('update-status');
+
+            // AJAX
+            Route::get('/{sacolinha}/details', [AdminSacolinhaController::class, 'details'])->name('details');
+        });
     });
 });
-
 // ===== ROTAS DE FALLBACK =====
 
 // Redirecionar rotas antigas se necessário

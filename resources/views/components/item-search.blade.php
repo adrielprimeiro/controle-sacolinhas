@@ -230,6 +230,7 @@ function initItemSearch(wrapper) {
             const visiblePriceInput = document.getElementById('item-price');
             if (visiblePriceInput) {
                 visiblePriceInput.value = item.price;
+				visiblePriceInput.focus();
             }
         }
         
@@ -269,8 +270,7 @@ function initItemSearch(wrapper) {
         currentFocus = -1;
         searchResults = [];
         
-        // Disparar evento customizado
-        wrapper.dispatchEvent(new CustomEvent('itemCleared'));
+
     }
 
     function updateFocus(items) {

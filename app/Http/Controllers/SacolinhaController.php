@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Sacolinhas;
-use App\Models\Live;
+use App\Models\Live; // Certifique-se de que o modelo Live existe e está importado
 use App\Models\User;
+use App\Models\Item; // Importar o modelo Item para buscar o preço original
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log; // Para usar Log::error
 
 class SacolinhaController extends Controller
 {
@@ -23,14 +25,11 @@ class SacolinhaController extends Controller
                 'client_id' => 'required|integer|exists:users,id',
                 'item_id' => 'required|integer|exists:items,id',
                 'item_price' => 'required|numeric|min:0',
-                'item_quantity' => 'required|integer|min:1'
+                // 'item_quantity' não é mais necessário, pois sempre será 1
             ]);
 
-            // Buscar live ativa (usando campo 'ativo')
-            $liveAtiva = DB::table('lives')
-                          ->where('ativo', true)
-                          ->orderBy('created_at', 'desc')
-                          ->first();
+            // Buscar live ativa
+            $liveAtiva = Live::where('ativo', 1)->orderBy('created_at', 'desc')->first();
 
             if (!$liveAtiva) {
                 return response()->json([
@@ -49,7 +48,7 @@ class SacolinhaController extends Controller
             }
 
             // Buscar dados do item
-            $item = DB::table('items')->where('id', $request->item_id)->first();
+            $item = Item::find($request->item_id); // Usar o modelo Item
             if (!$item) {
                 return response()->json([
                     'success' => false,
@@ -57,40 +56,27 @@ class SacolinhaController extends Controller
                 ], 404);
             }
 
-            // Verificar se item já existe na sacola do cliente para esta live
-            $sacolaExistente = Sacolinhas::where([
+            $finalPrice = $request->item_price;
+
+            // Aplicar desconto de 50% se for Live do Precinho
+            if ($liveAtiva->tipo_live === 'precinho') {
+                // O preço já deve vir com desconto do frontend, mas podemos recalcular para garantir
+                $finalPrice = $item->preco * 0.5;
+            }
+
+            // Sempre criar uma nova entrada para cada item adicionado
+            $sacolinha = Sacolinhas::create([
                 'user_id' => $request->client_id,
                 'item_id' => $request->item_id,
-                'live_id' => $liveAtiva->id
-            ])->first();
+                'live_id' => $liveAtiva->id,
+                'quantity' => 1, // Quantidade fixa em 1
+                'price' => $finalPrice, // Preço final (com ou sem desconto)
+                'add_at' => now(),
+                'status' => 'pendente',
+                'obs' => $request->obs ?? null
+            ]);
 
-            if ($sacolaExistente) {
-                // Atualizar quantidade existente
-                $sacolaExistente->update([
-                    'quantity' => $sacolaExistente->quantity + $request->item_quantity,
-                    'price' => $request->item_price,
-                    'add_at' => now()
-                ]);
-                
-                $message = 'Quantidade atualizada na sacola! Total: ' . $sacolaExistente->quantity . ' itens';
-                $sacolinha = $sacolaExistente;
-            } else {
-                // Criar nova entrada (UM registro com quantidade)
-                $sacolinha = Sacolinhas::create([
-                    'user_id' => $request->client_id,
-                    'item_id' => $request->item_id,
-                    'live_id' => $liveAtiva->id,
-                    'quantity' => $request->item_quantity,
-                    'price' => $request->item_price,
-                    'add_at' => now(),
-                    'status' => 'pendente',
-                    'obs' => $request->obs ?? null
-                ]);
-                
-                $message = $request->item_quantity > 1 
-                    ? $request->item_quantity . ' itens adicionados à sacola com sucesso!'
-                    : 'Item adicionado à sacola com sucesso!';
-            }
+            $message = 'Item adicionado à sacola com sucesso!';
 
             return response()->json([
                 'success' => true,
@@ -108,13 +94,14 @@ class SacolinhaController extends Controller
                         'price' => (float) $item->preco,
                         'formatted_price' => 'R$ ' . number_format((float) $item->preco, 2, ',', '.')
                     ],
-                    'quantity' => $sacolinha->quantity,
-                    'total_price' => $sacolinha->quantity * $sacolinha->price,
-                    'formatted_total' => 'R$ ' . number_format($sacolinha->quantity * $sacolinha->price, 2, ',', '.')
+                    'quantity' => 1, // Sempre 1
+                    'total_price' => $finalPrice,
+                    'formatted_total' => 'R$ ' . number_format($finalPrice, 2, ',', '.')
                 ]
             ]);
 
         } catch (\Exception $e) {
+            Log::error('Erro ao adicionar item à sacola: ' . $e->getMessage(), ['exception' => $e]);
             return response()->json([
                 'success' => false,
                 'message' => 'Erro interno: ' . $e->getMessage()
@@ -122,187 +109,122 @@ class SacolinhaController extends Controller
         }
     }
 
-	public function getBagsByLive($liveId = null)
-	{
-		try {
-			if (!$liveId) {
-				// Buscar live ativa
-				$live = DB::table('lives')
-						  ->where('ativo', 1)
-						  ->orderBy('created_at', 'desc')
-						  ->first();
-				
-				if (!$live) {
-					return response()->json([
-						'success' => true,
-						'data' => [],
-						'message' => 'Nenhuma live ativa no momento',
-						'live_info' => null
-					]);
-				}
-				
-				$liveId = $live->id;
-			} else {
-				// Buscar informações da live específica
-				$live = DB::table('lives')->where('id', $liveId)->first();
-			}
-
-			// Buscar sacolinhas com informações completas
-			$sacolinhas = DB::table('sacolinhas as s')
-				->join('users as u', 's.user_id', '=', 'u.id')
-				->join('items as i', 's.item_id', '=', 'i.id')
-				->where('s.live_id', $liveId)
-				->select([
-					's.id as sacolinha_id',
-					's.quantity',
-					's.price',
-					's.add_at',
-					's.status',
-					's.tray',
-					's.obs',
-					'u.id as user_id',
-					'u.name as user_name',
-					'u.email as user_email',
-					'u.phone as user_phone',
-					'i.id as item_id',
-					'i.nome_do_produto as item_name',
-					'i.preco as item_price_original',
-					'i.codigo as item_sku',
-					'i.marca as item_brand',
-					'i.cor as item_color',
-					'i.tamanho as item_size'
-				])
-				->orderBy('s.add_at', 'desc')
-				->get();
-
-			// Agrupar por cliente com estatísticas
-			$bagsByClient = $sacolinhas->groupBy('user_id')->map(function ($clientSacolinhas) {
-				$firstItem = $clientSacolinhas->first();
-				
-				$items = $clientSacolinhas->map(function ($sacola) {
-					$totalPrice = $sacola->quantity * $sacola->price;
-					
-					return [
-						'sacolinha_id' => $sacola->sacolinha_id,
-						'item_id' => $sacola->item_id,
-						'item_name' => $sacola->item_name,
-						'item_sku' => $sacola->item_sku ?? '',
-						'item_brand' => $sacola->item_brand ?? '',
-						'item_color' => $sacola->item_color ?? '',
-						'item_size' => $sacola->item_size ?? '',
-						'quantity' => $sacola->quantity,
-						'unit_price' => (float) $sacola->price,
-						'total_price' => $totalPrice,
-						'formatted_unit_price' => 'R\$ ' . number_format($sacola->price, 2, ',', '.'),
-						'formatted_total_price' => 'R\$ ' . number_format($totalPrice, 2, ',', '.'),
-						'status' => $sacola->status,
-						'added_at' => $sacola->add_at,
-						'tray' => $sacola->tray,
-						'obs' => $sacola->obs
-					];
-				});
-
-				$totalBagValue = $items->sum('total_price');
-				$totalQuantity = $items->sum('quantity');
-
-				return [
-					'client' => [
-						'id' => $firstItem->user_id,
-						'name' => $firstItem->user_name,
-						'email' => $firstItem->user_email,
-						'phone' => $firstItem->user_phone ?? '',
-						'avatar_url' => "https://ui-avatars.com/api/?name=" . urlencode($firstItem->user_name) . "&background=667eea&color=fff&size=128"
-					],
-					'items' => $items,
-					'total_items' => $items->count(),
-					'total_quantity' => $totalQuantity,
-					'total_value' => $totalBagValue,
-					'formatted_total' => 'R\$ ' . number_format($totalBagValue, 2, ',', '.'),
-					'last_update' => $items->max('added_at')
-				];
-			})->values();
-
-			return response()->json([
-				'success' => true,
-				'data' => $bagsByClient,
-				'total_bags' => $bagsByClient->count(),
-				'total_items' => $sacolinhas->sum('quantity'),
-				'total_value' => $sacolinhas->sum(function($item) {
-					return $item->quantity * $item->price;
-				}),
-				'live_id' => $liveId,
-				'live_info' => $live ? [
-					'id' => $live->id,
-					'tipo_live' => $live->tipo_live,
-					'data' => $live->data,
-					'ativo' => $live->ativo,
-					'plataformas' => $live->plataformas ?? ''
-				] : null
-			]);
-
-		} catch (\Exception $e) {
-			\Log::error("Erro ao carregar sacolas da live {$liveId}: " . $e->getMessage());
-			
-			return response()->json([
-				'success' => false,
-				'message' => 'Erro ao carregar sacolas: ' . $e->getMessage()
-			], 500);
-		}
-	}
-
-    public function removeItem(Request $request)
+    public function getBagsByLive($liveId = null)
     {
         try {
-            $request->validate([
-                'item_id' => 'required|integer',
-                'user_id' => 'required|integer',
-                'live_id' => 'required|integer',
-                'quantity' => 'required|integer|min:1'
-            ]);
+            $live = null;
+            if (!$liveId) {
+                // Buscar live ativa
+                $live = Live::where('ativo', 1)
+                          ->orderBy('created_at', 'desc')
+                          ->first();
 
-            $itemId = $request->input('item_id');
-            $userId = $request->input('user_id');
-            $liveId = $request->input('live_id');
-            $quantityToRemove = $request->input('quantity');
-
-            // Buscar a sacola específica
-            $sacola = Sacolinhas::where('item_id', $itemId)
-                               ->where('user_id', $userId)
-                               ->where('live_id', $liveId)
-                               ->first();
-
-            if (!$sacola) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Item não encontrado na sacola!'
-                ], 404);
-            }
-
-            $quantidadeAnterior = $sacola->quantity;
-
-            if ($sacola->quantity <= $quantityToRemove) {
-                // Remover completamente
-                $sacola->delete();
-                $message = 'Item removido da sacola completamente! (' . $quantidadeAnterior . ' itens removidos)';
+                if (!$live) {
+                    return response()->json([
+                        'success' => true,
+                        'data' => [],
+                        'message' => 'Nenhuma live ativa no momento',
+                        'live_info' => null
+                    ]);
+                }
+                $liveId = $live->id;
             } else {
-                // Diminuir quantidade
-                $novaQuantidade = $sacola->quantity - $quantityToRemove;
-                $sacola->update([
-                    'quantity' => $novaQuantidade
-                ]);
-                $message = $quantityToRemove . ' item(s) removido(s). Restam ' . $novaQuantidade . ' na sacola.';
+                // Buscar informações da live específica
+                $live = Live::find($liveId);
             }
+
+            // Buscar sacolinhas com informações completas
+            $sacolinhas = Sacolinhas::with(['user', 'item']) // Usar relacionamentos do Eloquent
+                ->where('live_id', $liveId)
+                ->orderBy('add_at', 'desc')
+                ->get();
+
+            // Agrupar por cliente com estatísticas
+            $bagsByClient = $sacolinhas->groupBy('user_id')->map(function ($clientSacolinhas) {
+                $firstItem = $clientSacolinhas->first();
+                $user = $firstItem->user; // Acessar o usuário via relacionamento
+
+                $items = $clientSacolinhas->map(function ($sacola) {
+                    // Cada sacola aqui é um registro Sacolinhas, que representa um item único
+                    return [
+                        'sacolinha_id' => $sacola->id, // ID do registro Sacolinhas
+                        'item_id' => $sacola->item_id,
+                        'item_name' => $sacola->item->nome_do_produto, // Acessar nome do item via relacionamento
+                        'item_sku' => $sacola->item->codigo ?? '',
+                        'item_brand' => $sacola->item->marca ?? '',
+                        'item_color' => $sacola->item->cor ?? '',
+                        'item_size' => $sacola->item->tamanho ?? '',
+                        'quantity' => 1, // Sempre 1 para cada registro
+                        'unit_price' => (float) $sacola->price,
+                        'total_price' => (float) $sacola->price, // Total é o próprio preço
+                        'formatted_unit_price' => 'R$ ' . number_format($sacola->price, 2, ',', '.'),
+                        'formatted_total_price' => 'R$ ' . number_format($sacola->price, 2, ',', '.'),
+                        'status' => $sacola->status,
+                        'added_at' => $sacola->add_at,
+                        'tray' => $sacola->tray,
+                        'obs' => $sacola->obs
+                    ];
+                });
+
+                $totalBagValue = $items->sum('total_price');
+                $totalQuantity = $items->count(); // Contagem de registros = quantidade de itens
+
+                return [
+                    'client' => [
+                        'id' => $user->id,
+                        'name' => $user->name,
+                        'email' => $user->email,
+                        'phone' => $user->phone ?? '',
+                        'avatar_url' => "https://ui-avatars.com/api/?name=" . urlencode($user->name) . "&background=667eea&color=fff&size=128"
+                    ],
+                    'items' => $items,
+                    'total_items' => $items->count(), // Total de registros (itens)
+                    'total_quantity' => $totalQuantity, // Total de registros (itens)
+                    'total_value' => $totalBagValue,
+                    'formatted_total' => 'R$ ' . number_format($totalBagValue, 2, ',', '.'),
+                    'last_update' => $items->max('added_at')
+                ];
+            })->values();
 
             return response()->json([
                 'success' => true,
-                'message' => $message,
-                'data' => [
-                    'removed_quantity' => $quantityToRemove,
-                    'remaining_quantity' => $sacola->exists ? $sacola->quantity : 0
-                ]
+                'data' => $bagsByClient,
+                'total_bags' => $bagsByClient->count(), // Quantidade de sacolas (clientes com itens)
+                'total_items' => $sacolinhas->count(), // Quantidade total de itens (registros)
+                'total_value' => $sacolinhas->sum('price'), // Valor total de todos os itens
+                'live_id' => $liveId,
+                'live_info' => $live ? [
+                    'id' => $live->id,
+                    'tipo_live' => $live->tipo_live,
+                    'data' => $live->data,
+                    'ativo' => $live->ativo,
+                    'plataformas' => $live->plataformas ?? ''
+                ] : null
             ]);
 
         } catch (\Exception $e) {
+            Log::error("Erro ao carregar sacolas da live {$liveId}: " . $e->getMessage(), ['exception' => $e]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erro ao carregar sacolas: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    // NOVO MÉTODO: Remover um item específico da sacola pelo ID do registro Sacolinhas
+    public function destroySacolinhaItem(Sacolinhas $sacolinha)
+    {
+        try {
+            $sacolinha->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Item removido da sacola com sucesso!',
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Erro ao remover item da sacola: ' . $e->getMessage(), ['exception' => $e]);
             return response()->json([
                 'success' => false,
                 'message' => 'Erro ao remover item: ' . $e->getMessage()
@@ -310,11 +232,14 @@ class SacolinhaController extends Controller
         }
     }
 
+    // REMOVA OU REAPROVEITE ESTE MÉTODO SE NÃO FOR MAIS USADO
+    // public function removeItem(Request $request) { ... }
+
     public function getLiveStats($liveId = null)
     {
         try {
             if (!$liveId) {
-                $live = DB::table('lives')->where('ativo', true)->first();
+                $live = Live::where('ativo', 1)->first();
                 if (!$live) {
                     return response()->json([
                         'success' => false,
@@ -324,14 +249,11 @@ class SacolinhaController extends Controller
                 $liveId = $live->id;
             }
 
-            $stats = DB::table('sacolinhas')
-                ->where('live_id', $liveId)
+            $stats = Sacolinhas::where('live_id', $liveId)
                 ->selectRaw('
-                    COUNT(*) as total_entries,
-                    SUM(quantity) as total_items,
-                    SUM(quantity * price) as total_value,
-                    COUNT(DISTINCT user_id) as total_clients,
-                    COUNT(DISTINCT item_id) as unique_items
+                    COUNT(*) as total_items_count,       -- Total de registros (itens únicos)
+                    SUM(price) as total_value_sum,       -- Soma dos preços dos itens
+                    COUNT(DISTINCT user_id) as total_clients_count
                 ')
                 ->first();
 
@@ -339,16 +261,15 @@ class SacolinhaController extends Controller
                 'success' => true,
                 'data' => [
                     'live_id' => $liveId,
-                    'total_entries' => $stats->total_entries ?? 0,
-                    'total_items' => $stats->total_items ?? 0,
-                    'total_value' => $stats->total_value ?? 0,
-                    'formatted_total_value' => 'R$ ' . number_format($stats->total_value ?? 0, 2, ',', '.'),
-                    'total_clients' => $stats->total_clients ?? 0,
-                    'unique_items' => $stats->unique_items ?? 0
+                    'total_bags' => $stats->total_clients_count ?? 0, // Total de clientes com sacolas
+                    'total_items' => $stats->total_items_count ?? 0, // Total de itens únicos adicionados
+                    'total_value' => $stats->total_value_sum ?? 0,
+                    'formatted_total_value' => 'R$ ' . number_format($stats->total_value_sum ?? 0, 2, ',', '.'),
                 ]
             ]);
 
         } catch (\Exception $e) {
+            Log::error('Erro ao obter estatísticas: ' . $e->getMessage(), ['exception' => $e]);
             return response()->json([
                 'success' => false,
                 'message' => 'Erro ao obter estatísticas: ' . $e->getMessage()
@@ -375,6 +296,7 @@ class SacolinhaController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            Log::error('Erro ao limpar sacola: ' . $e->getMessage(), ['exception' => $e]);
             return response()->json([
                 'success' => false,
                 'message' => 'Erro ao limpar sacola: ' . $e->getMessage()
@@ -405,6 +327,7 @@ class SacolinhaController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            Log::error('Erro ao atualizar status: ' . $e->getMessage(), ['exception' => $e]);
             return response()->json([
                 'success' => false,
                 'message' => 'Erro ao atualizar status: ' . $e->getMessage()
@@ -412,264 +335,236 @@ class SacolinhaController extends Controller
         }
     }
 
-	/**
-	 * Fechar/desativar a live ativa
-	 */
-	public function closeLive(Request $request)
-	{
-		try {
-			$request->validate([
-				'live_id' => 'nullable|integer|exists:lives,id'
-			]);
+    /**
+     * Fechar/desativar a live ativa
+     */
+    public function closeLive(Request $request)
+    {
+        try {
+            $request->validate([
+                'live_id' => 'nullable|integer|exists:lives,id'
+            ]);
 
-			$liveId = $request->live_id;
+            $liveId = $request->live_id;
 
-			if (!$liveId) {
-				// Buscar live ativa automaticamente
-				$liveAtiva = DB::table('lives')
-							  ->where('ativo', 1) // ✅ Usar 1 para MySQL
-							  ->orderBy('created_at', 'desc')
-							  ->first();
+            if (!$liveId) {
+                // Buscar live ativa automaticamente
+                $liveAtiva = Live::where('ativo', 1)
+                              ->orderBy('created_at', 'desc')
+                              ->first();
 
-				if (!$liveAtiva) {
-					return response()->json([
-						'success' => false,
-						'message' => 'Não há live ativa para fechar!'
-					], 400);
-				}
+                if (!$liveAtiva) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Não há live ativa para fechar!'
+                    ], 400);
+                }
 
-				$liveId = $liveAtiva->id;
-			}
+                $liveId = $liveAtiva->id;
+            }
 
-			// ✅ CORREÇÃO: Desativar a live (ativo = 0)
-			$updated = DB::table('lives')
-						->where('id', $liveId)
-						->update([
-							'ativo' => 0, // ✅ Usar 0 em vez de false para MySQL
-							'updated_at' => now()
-						]);
+            $updated = Live::where('id', $liveId)
+                        ->update([
+                            'ativo' => 0,
+                            'updated_at' => now()
+                        ]);
 
-			if (!$updated) {
-				return response()->json([
-					'success' => false,
-					'message' => 'Live não encontrada ou já estava fechada!'
-				], 404);
-			}
+            if (!$updated) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Live não encontrada ou já estava fechada!'
+                ], 404);
+            }
 
-			// ✅ ADICIONAR: Log para debug
-			\Log::info("Live {$liveId} foi encerrada com sucesso");
+            Log::info("Live {$liveId} foi encerrada com sucesso");
 
-			return response()->json([
-				'success' => true,
-				'message' => 'Live encerrada com sucesso!',
-				'data' => [
-					'live_id' => $liveId,
-					'ativo' => 0 // ✅ Retornar o status atual
-				]
-			]);
+            return response()->json([
+                'success' => true,
+                'message' => 'Live encerrada com sucesso!',
+                'data' => [
+                    'live_id' => $liveId,
+                    'ativo' => 0
+                ]
+            ]);
 
-		} catch (\Exception $e) {
-			\Log::error("Erro ao fechar live: " . $e->getMessage());
-			
-			return response()->json([
-				'success' => false,
-				'message' => 'Erro ao fechar live: ' . $e->getMessage()
-			], 500);
-		}
-	}
+        } catch (\Exception $e) {
+            Log::error("Erro ao fechar live: " . $e->getMessage(), ['exception' => $e]);
 
-	 /**
-	 * Buscar live ativa
-	 */
-	public function getActiveLive()
-	{
-		try {
-			// ✅ CORREÇÃO: Buscar live ativa usando ativo = 1 (MySQL trata boolean como tinyint)
-			$live = DB::table('lives')
-					  ->where('ativo', 1) // ✅ Usar 1 em vez de true para MySQL
-					  ->orderBy('created_at', 'desc')
-					  ->first();
-			
-			if (!$live) {
-				return response()->json([
-					'success' => true,
-					'data' => [],
-					'message' => 'Nenhuma live ativa no momento',
-					'live' => null,
-					'live_id' => null,
-					'has_active_live' => false // ✅ ADICIONAR flag clara
-				]);
-			}
+            return response()->json([
+                'success' => false,
+                'message' => 'Erro ao fechar live: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 
-			return response()->json([
-				'success' => true,
-				'data' => [$live],
-				'live_id' => $live->id,
-				'live' => $live,
-				'has_active_live' => true // ✅ ADICIONAR flag clara
-			]);
+     /**
+     * Buscar live ativa
+     */
+    public function getActiveLive()
+    {
+        try {
+            $live = Live::where('ativo', 1)
+                      ->orderBy('created_at', 'desc')
+                      ->first();
 
-		} catch (\Exception $e) {
-			\Log::error("Erro ao buscar live ativa: " . $e->getMessage());
-			
-			return response()->json([
-				'success' => false,
-				'message' => 'Erro ao buscar live ativa: ' . $e->getMessage(),
-				'has_active_live' => false
-			], 500);
-		}
-	}
-	/**
-	 * Criar nova live
-	 */
-	public function createLive(Request $request)
-	{
-		try {
-			// Validar dados
-			$request->validate([
-				'tipo_live' => 'required|string|in:loja-aberta,leilao,precinho',
-				'plataformas' => 'required|array|min:1',
-				'plataformas.*' => 'string|in:instagram,tiktok,youtube'
-			]);
+            if (!$live) {
+                return response()->json([
+                    'success' => true,
+                    'data' => [],
+                    'message' => 'Nenhuma live ativa no momento',
+                    'live' => null,
+                    'live_id' => null,
+                    'has_active_live' => false
+                ]);
+            }
 
-			// Verificar se já existe uma live ativa
-			$liveAtiva = DB::table('lives')
-						  ->where('ativo', 1)
-						  ->first();
+            return response()->json([
+                'success' => true,
+                'data' => [$live],
+                'live_id' => $live->id,
+                'live' => $live,
+                'has_active_live' => true
+            ]);
 
-			if ($liveAtiva) {
-				return response()->json([
-					'success' => false,
-					'message' => 'Já existe uma live ativa. Encerre-a antes de criar uma nova.'
-				]);
-			}
+        } catch (\Exception $e) {
+            Log::error("Erro ao buscar live ativa: " . $e->getMessage(), ['exception' => $e]);
 
-			// Criar nova live
-			$liveId = DB::table('lives')->insertGetId([
-				'tipo_live' => $request->tipo_live,
-				'plataformas' => implode(',', $request->plataformas),
-				'data' => now()->toDateString(),
-				'ativo' => 1, // ✅ Live ativa
-				'nome' => auth()->id(),
-				'created_at' => now(),
-				'updated_at' => now()
-			]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Erro ao buscar live ativa: ' . $e->getMessage(),
+                'has_active_live' => false
+            ], 500);
+        }
+    }
+    /**
+     * Criar nova live
+     */
+    public function createLive(Request $request)
+    {
+        try {
+            // Validar dados
+            $request->validate([
+                'tipo_live' => 'required|string|in:loja-aberta,leilao,precinho',
+                'plataformas' => 'required|array|min:1',
+                'plataformas.*' => 'string|in:instagram,tiktok,youtube'
+            ]);
 
-			// Buscar a live criada
-			$live = DB::table('lives')->where('id', $liveId)->first();
+            // Verificar se já existe uma live ativa
+            $liveAtiva = Live::where('ativo', 1)
+                          ->first();
 
-			return response()->json([
-				'success' => true,
-				'message' => 'Live criada com sucesso!',
-				'live' => [
-					'id' => $live->id,
-					'tipo_live' => $live->tipo_live,
-					'plataformas' => explode(',', $live->plataformas),
-					'data' => $live->data,
-					'ativo' => $live->ativo,
-					'created_at' => $live->created_at
-				]
-			]);
+            if ($liveAtiva) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Já existe uma live ativa. Encerre-a antes de criar uma nova.'
+                ]);
+            }
 
-		} catch (\Illuminate\Validation\ValidationException $e) {
-			return response()->json([
-				'success' => false,
-				'message' => 'Dados inválidos: ' . implode(', ', $e->validator->errors()->all())
-			], 422);
-		} catch (\Exception $e) {
-			\Log::error('Erro ao criar live: ' . $e->getMessage());
-			
-			return response()->json([
-				'success' => false,
-				'message' => 'Erro interno do servidor'
-			], 500);
-		}
-	}
-	
-	/**
-	 * Buscar sacolinhas de uma live específica para AJAX
-	 */
-	public function getSacolinhasByLive(Live $live)
-	{
-		try {
-			// Buscar sacolinhas da live usando relacionamentos
-			$sacolinhas = DB::table('sacolinhas as s')
-				->join('users as u', 's.user_id', '=', 'u.id')
-				->join('items as i', 's.item_id', '=', 'i.id')
-				->where('s.live_id', $live->id)
-				->select([
-					's.id as sacolinha_id',
-					's.quantity',
-					's.price',
-					's.add_at',
-					's.status',
-					's.obs',
-					'u.id as user_id',
-					'u.name as user_name',
-					'u.email as user_email',
-					'i.id as item_id',
-					'i.nome_do_produto as item_name',
-					'i.preco as item_price_original',
-					'i.codigo as item_sku'
-				])
-				->orderBy('s.add_at', 'desc')
-				->get();
+            // Criar nova live
+            $live = Live::create([ // Usar o modelo Live
+                'tipo_live' => $request->tipo_live,
+                'plataformas' => implode(',', $request->plataformas),
+                'data' => now()->toDateString(),
+                'ativo' => 1,
+                'nome' => auth()->id(), // Assumindo que 'nome' é o user_id
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
 
-			// Agrupar por cliente e calcular totais
-			$sacolinhasByClient = $sacolinhas->groupBy('user_id')->map(function ($clientSacolinhas) {
-				$firstItem = $clientSacolinhas->first();
-				
-				$totalValue = $clientSacolinhas->sum(function($item) {
-					return $item->quantity * $item->price;
-				});
-				
-				$totalItems = $clientSacolinhas->sum('quantity');
-				
-				return [
-					'id' => $firstItem->sacolinha_id,
-					'client_id' => $firstItem->user_id,
-					'client_name' => $firstItem->user_name,
-					'client_email' => $firstItem->user_email,
-					'items_count' => $clientSacolinhas->count(),
-					'total_items' => $totalItems,
-					'total_value' => number_format($totalValue, 2, ',', '.'),
-					'status' => 'ativa',
-					'created_at' => $firstItem->add_at,
-					'items' => $clientSacolinhas->map(function($item) {
-						return [
-							'name' => $item->item_name,
-							'sku' => $item->item_sku,
-							'quantity' => $item->quantity,
-							'price' => number_format($item->price, 2, ',', '.'),
-							'total' => number_format($item->quantity * $item->price, 2, ',', '.')
-						];
-					})
-				];
-			})->values();
+            return response()->json([
+                'success' => true,
+                'message' => 'Live criada com sucesso!',
+                'live' => [
+                    'id' => $live->id,
+                    'tipo_live' => $live->tipo_live,
+                    'plataformas' => explode(',', $live->plataformas),
+                    'data' => $live->data,
+                    'ativo' => $live->ativo,
+                    'created_at' => $live->created_at
+                ]
+            ]);
 
-			return response()->json([
-				'success' => true,
-				'live' => [
-					'id' => $live->id,
-					'tipo_live' => $live->tipo_live,
-					'formatted_date' => $live->data ? \Carbon\Carbon::parse($live->data)->format('d/m/Y') : \Carbon\Carbon::parse($live->created_at)->format('d/m/Y'),
-					'status' => $live->ativo ? 'ativa' : 'encerrada'
-				],
-				'sacolinhas' => $sacolinhasByClient,
-				'count' => $sacolinhasByClient->count(),
-				'total_items' => $sacolinhas->sum('quantity'),
-				'total_value' => number_format($sacolinhas->sum(function($item) {
-					return $item->quantity * $item->price;
-				}), 2, ',', '.')
-			]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Dados inválidos: ' . implode(', ', $e->validator->errors()->all())
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('Erro ao criar live: ' . $e->getMessage(), ['exception' => $e]);
 
-		} catch (\Exception $e) {
-			\Log::error("Erro ao buscar sacolinhas da live {$live->id}: " . $e->getMessage());
-			
-			return response()->json([
-				'success' => false,
-				'message' => 'Erro ao carregar sacolinhas: ' . $e->getMessage()
-			], 500);
-		}
-	}
+            return response()->json([
+                'success' => false,
+                'message' => 'Erro interno do servidor'
+            ], 500);
+        }
+    }
+
+    /**
+     * Buscar sacolinhas de uma live específica para AJAX (ADMIN)
+     * Este método é para o painel administrativo, então pode ter uma lógica diferente
+     * de agrupamento/exibição se necessário.
+     * Ajustado para refletir a nova estrutura de "um registro por item".
+     */
+    public function getSacolinhasByLive(Live $live)
+    {
+        try {
+            $sacolinhas = Sacolinhas::with(['user', 'item'])
+                ->where('live_id', $live->id)
+                ->orderBy('add_at', 'desc')
+                ->get();
+
+            // Agrupar por cliente e calcular totais
+            $sacolinhasByClient = $sacolinhas->groupBy('user_id')->map(function ($clientSacolinhas) {
+                $firstItem = $clientSacolinhas->first();
+                $user = $firstItem->user;
+
+                $totalValue = $clientSacolinhas->sum('price');
+                $totalItems = $clientSacolinhas->count(); // Cada registro é um item
+
+                return [
+                    'id' => $user->id, // ID do cliente
+                    'client_id' => $user->id,
+                    'client_name' => $user->name,
+                    'client_email' => $user->email,
+                    'items_count' => $totalItems, // Total de itens únicos para este cliente
+                    'total_items' => $totalItems,
+                    'total_value' => number_format($totalValue, 2, ',', '.'),
+                    'status' => 'ativa', // Ou o status real da sacola do cliente
+                    'created_at' => $firstItem->add_at,
+                    'items' => $clientSacolinhas->map(function($sacolaItem) { // Renomeado para sacolaItem para clareza
+                        return [
+                            'sacolinha_id' => $sacolaItem->id, // ID do registro Sacolinhas
+                            'name' => $sacolaItem->item->nome_do_produto,
+                            'sku' => $sacolaItem->item->codigo,
+                            'quantity' => 1, // Sempre 1
+                            'price' => number_format($sacolaItem->price, 2, ',', '.'),
+                            'total' => number_format($sacolaItem->price, 2, ',', '.') // Total é o próprio preço
+                        ];
+                    })
+                ];
+            })->values();
+
+            return response()->json([
+                'success' => true,
+                'live' => [
+                    'id' => $live->id,
+                    'tipo_live' => $live->tipo_live,
+                    'formatted_date' => $live->data ? \Carbon\Carbon::parse($live->data)->format('d/m/Y') : \Carbon\Carbon::parse($live->created_at)->format('d/m/Y'),
+                    'status' => $live->ativo ? 'ativa' : 'encerrada'
+                ],
+                'sacolinhas' => $sacolinhasByClient,
+                'count' => $sacolinhasByClient->count(), // Número de clientes com sacolas
+                'total_items' => $sacolinhas->count(), // Total de itens únicos em todas as sacolas
+                'total_value' => number_format($sacolinhas->sum('price'), 2, ',', '.')
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error("Erro ao buscar sacolinhas da live {$live->id}: " . $e->getMessage(), ['exception' => $e]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erro ao carregar sacolinhas: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }
