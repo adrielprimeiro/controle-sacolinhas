@@ -221,23 +221,7 @@
                                            value="{{ old('item_price') }}"
                                            required>
                                 </div>
-
-                                <!-- Quantidade -->
-                                <div class="col-md-4 mb-3">
-                                    <label for="item-quantity" class="form-label">
-                                        <i class="fas fa-hashtag"></i>
-                                        Quantidade
-                                    </label>
-                                    <input type="number"
-                                           class="form-control"
-                                           name="item_quantity"
-                                           id="item-quantity"
-                                           placeholder="1"
-                                           min="1"
-                                           value="{{ old('item_quantity', 1) }}"
-                                           required>
-                                </div>
-
+                               
                                 <!-- Botão -->
                                 <div class="col-md-4 mb-3 d-flex align-items-end">
                                     <button type="submit" class="btn btn-primary w-100">
@@ -307,7 +291,6 @@
 				const item = e.detail.item;
 				console.log('Item selecionado:', item);
 				mostrarAlert(`Item selecionado: ${item.name} - ${item.formatted_price}`, 'info');
-				document.getElementById('item-quantity').focus();
 			});
 
 			itemSearchComponent.addEventListener('itemCleared', function(e) {
@@ -338,6 +321,7 @@
 			}
 
 			const formData = new FormData(this);
+			formData.append('item_quantity', 1);			
 			const button = this.querySelector('button[type="submit"]');
 			const originalText = button.innerHTML;
 			
@@ -366,16 +350,13 @@
 					if (itemWrapper) {
 						itemWrapper.dispatchEvent(new CustomEvent('itemCleared'));
 					}
-//.........................................................
-		            // ✅ RESETAR QUANTIDADE PARA 1
-					document.getElementById('item-quantity').value = '1';
 					
 					// ✅ FOCAR NO CAMPO DE USUÁRIO PARA PRÓXIMA ADIÇÃO
 					const userInput = document.querySelector('[data-user-search="true"] [data-search-input="true"]');
 					if (userInput) {
 						setTimeout(() => userInput.focus(), 100);
 					}
-//.................................................................
+
 					carregarSacolas();
 				} else {
 					mostrarAlert(data.message, 'danger');
@@ -563,7 +544,6 @@
 									<tr>
 										<th>Item</th>
 										<th>Detalhes</th>
-										<th>Qtd</th>
 										<th>Preço Unit.</th>
 										<th>Total</th>
 										<th width="100">Ações</th>
@@ -583,17 +563,12 @@
 					<tr>
 						<td><strong>${item.item_name}</strong></td>
 						<td><small class="text-muted">${details.join(' | ')}</small></td>
-						<td><span class="badge bg-secondary">${item.quantity}</span></td>
 						<td>${item.formatted_unit_price}</td>
 						<td class="fw-bold text-success">${item.formatted_total_price}</td>
 						<td>
 							<div class="btn-group btn-group-sm">
-								<button class="btn btn-outline-warning" onclick="removerUmItem(${item.item_id}, ${bag.client.id})" title="Remover 1">
-									<i class="fas fa-minus"></i>
-								</button>
-								<button class="btn btn-outline-danger" onclick="removerTodosItens(${item.item_id}, ${bag.client.id}, ${item.quantity})" title="Remover todos">
-									<i class="fas fa-trash"></i>
-								</button>
+                                <button class="btn btn-outline-danger" onclick="removerSacolaItem(${item.sacola_item_id})" title="Remover item">
+                                <i class="fas fa-trash"></i>
 							</div>
 						</td>
 					</tr>
