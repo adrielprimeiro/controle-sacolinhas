@@ -17,12 +17,12 @@ class UserController extends Controller
             $role = $request->get('role', 'client');
             
             // Validação similar ao ItemController
-            if (strlen($query) < 1) {
+            /*if (strlen($query) < 1) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Query muito curta'
                 ]);
-            }
+            }*/
 
             // Busca de usuários (ajuste os campos conforme sua tabela)
             $users = User::where(function($q) use ($query) {

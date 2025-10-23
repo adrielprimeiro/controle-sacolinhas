@@ -126,14 +126,14 @@ class ItemController extends Controller
     public function search(Request $request)
     {
         $query = $request->get('q');
-        
-        if (strlen($query) < 2) {
+        /*
+        if (strlen($query) < 1) {
             return response()->json([
                 'success' => false,
                 'message' => 'Query muito curta'
             ]);
         }
-        
+        */
         $items = Item::where('nome_do_produto', 'like', "%{$query}%")
                      ->orWhere('codigo', 'like', "%{$query}%")
                      ->orWhere('descricao', 'like', "%{$query}%")

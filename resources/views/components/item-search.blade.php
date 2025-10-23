@@ -1,48 +1,47 @@
+{{-- resources/views/components/item-search.blade.php --}}
 <div class="item-search-wrapper" data-item-search="true">
     <div class="position-relative">
-        <!-- Input de Busca -->
-        <div class="input-group">
-            <span class="input-group-text">
-                <i class="fas fa-box text-muted"></i>
-            </span>
-			<input 
-				type="text" 
-				class="form-control item-search-input" 
-				placeholder="{{ $placeholder ?? 'Buscar por nome, SKU ou descrição...' }}"
-				autocomplete="new-password"
-				autocapitalize="none"
-				autocorrect="off"
-				spellcheck="false"
-				data-form-type="other"
-				data-search-input="true"
-			>
-            <button class="btn btn-outline-secondary item-clear-btn d-none" type="button" data-clear-btn="true">
-                <i class="fas fa-times"></i>
-            </button>
+        <input type="text" 
+               class="form-control item-search-input" 
+               data-search-input="true"
+               placeholder="{{ $placeholder ?? 'Buscar item...' }}" 
+               autocomplete="off"
+               data-bs-toggle="dropdown">
+        
+        <input type="hidden" 
+               name="{{ $name }}" 
+               class="item-id-input" 
+               value="{{ $value ?? '' }}">
+        
+        @if(isset($priceField))
+        <input type="hidden" 
+               name="{{ $priceField }}" 
+               class="item-price-input" 
+               value="{{ $priceValue ?? '' }}">
+        @endif
+        
+        <div class="dropdown-menu w-100 item-search-dropdown" style="max-height: 300px; overflow-y: auto;">
+            <div class="dropdown-item-text text-center py-2 search-placeholder">
+                <i class="fas fa-box text-muted me-2"></i>
+                Digite para buscar itens
+            </div>
         </div>
-
-        <!-- Dropdown de Sugestões -->
-        <div class="item-suggestions-dropdown" data-suggestions="true" style="display: none;">
-            <!-- Resultados aparecerão aqui -->
-        </div>
-
-        <!-- Campos Hidden -->
-        <input type="hidden" class="item-selected-id" name="{{ $name ?? 'item_id' }}" value="{{ $value ?? '' }}" data-hidden-input="true">
-        <input type="hidden" class="item-selected-price" name="{{ $priceField ?? 'item_price' }}" value="{{ $priceValue ?? '' }}" data-price-input="true">
     </div>
-
-    <!-- Item Selecionado -->
-    <div class="item-selected-display mt-2 d-none" data-selected-display="true">
+    
+    <!-- Card do item selecionado -->
+    <div class="selected-item-card mt-2" style="display: none;">
         <div class="card border-success">
-            <div class="card-body p-2">
-                <div class="d-flex align-items-center">
-                    <img class="item-selected-image rounded me-2" src="" alt="" width="32" height="32">
-                    <div class="flex-grow-1">
-                        <div class="item-selected-name fw-bold"></div>
-                        <small class="item-selected-price text-success fw-bold"></small>
-                        <br><small class="item-selected-sku text-muted"></small>
+            <div class="card-body py-2">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center">
+                        <img src="" class="item-image me-2" width="40" height="40" style="object-fit: cover; border-radius: 4px;">
+                        <div>
+                            <div class="fw-bold item-name"></div>
+                            <small class="text-muted item-details"></small>
+                            <div class="text-success fw-bold item-price"></div>
+                        </div>
                     </div>
-                    <button type="button" class="btn btn-sm btn-outline-danger item-remove-btn" data-remove-btn="true">
+                    <button type="button" class="btn btn-sm btn-outline-danger clear-item-btn">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
@@ -51,265 +50,296 @@
     </div>
 </div>
 
-<style>
-.item-search-wrapper {
-    position: relative;
-}
-
-.item-suggestions-dropdown {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    z-index: 9999;
-    background: white;
-    border: 1px solid #dee2e6;
-    border-radius: 0.375rem;
-    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-    max-height: 400px;
-    overflow-y: auto;
-    margin-top: 2px;
-}
-
-.item-suggestion-item {
-    padding: 0.75rem 1rem;
-    cursor: pointer;
-    border-bottom: 1px solid #f8f9fa;
-    transition: background-color 0.15s ease;
-}
-
-.item-suggestion-item:hover {
-    background-color: #f8f9fa;
-}
-
-.item-suggestion-item:last-child {
-    border-bottom: none;
-}
-
-.item-search-loading,
-.item-search-error,
-.item-search-no-results {
-    padding: 1rem;
-    text-align: center;
-    color: #6c757d;
-}
-
-.item-search-error {
-    color: #dc3545;
-}
-</style>
-
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('📦 Inicializando busca de itens...');
+    const itemSearchWrappers = document.querySelectorAll('[data-item-search="true"]');
     
-    const wrapper = document.querySelector('[data-item-search="true"]');
-    if (!wrapper) {
-        console.error('❌ Item wrapper não encontrado');
-        return;
-    }
-    
-    console.log('✅ Item wrapper encontrado');
-    
-    const elements = {
-        input: wrapper.querySelector('[data-search-input="true"]'),
-        dropdown: wrapper.querySelector('[data-suggestions="true"]'),
-        hiddenInput: wrapper.querySelector('[data-hidden-input="true"]'),
-        priceInput: wrapper.querySelector('[data-price-input="true"]'),
-        clearBtn: wrapper.querySelector('[data-clear-btn="true"]'),
-        selectedDisplay: wrapper.querySelector('[data-selected-display="true"]'),
-        removeBtn: wrapper.querySelector('[data-remove-btn="true"]')
-    };
+    itemSearchWrappers.forEach(wrapper => {
+        initItemSearch(wrapper);
+    });
+});
 
-    // Verificar elementos
-    const missing = Object.keys(elements).filter(key => !elements[key]);
-    if (missing.length > 0) {
-        console.error('❌ Elementos de item não encontrados:', missing);
-        return;
-    }
+function initItemSearch(wrapper) {
+    const input = wrapper.querySelector('.item-search-input');
+    const hiddenInput = wrapper.querySelector('.item-id-input');
+    const priceInput = wrapper.querySelector('.item-price-input');
+    const dropdown = wrapper.querySelector('.item-search-dropdown');
+    const selectedCard = wrapper.querySelector('.selected-item-card');
+    const clearBtn = wrapper.querySelector('.clear-item-btn');
     
-    console.log('✅ Todos os elementos de item encontrados');
+    let searchTimeout;
+    let currentFocus = -1;
+    let searchResults = [];
+    let isDropdownOpen = false;
 
-    let debounceTimer;
+    // Event listeners
+    input.addEventListener('input', handleInput);
+    input.addEventListener('keydown', handleKeydown);
+    input.addEventListener('focus', handleFocus);
+    input.addEventListener('blur', handleBlur);
+    clearBtn.addEventListener('click', clearSelection);
+    
+    // Event listener customizado para limpar seleção
+    wrapper.addEventListener('itemCleared', clearSelection);
 
-    // Event listener para input
-    elements.input.addEventListener('input', function(e) {
+    function handleInput(e) {
         const query = e.target.value.trim();
-        console.log('📝 Digitando item:', query);
         
-        if (query.length > 0) {
-            elements.clearBtn.classList.remove('d-none');
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => searchItems(query), 300);
-        } else {
-            elements.clearBtn.classList.add('d-none');
+        clearTimeout(searchTimeout);
+        currentFocus = -1;
+        
+        if (query.length === 0) {
             hideDropdown();
-        }
-    });
-
-    // Event listener para limpar
-    elements.clearBtn.addEventListener('click', function() {
-        elements.input.value = '';
-        elements.clearBtn.classList.add('d-none');
-        hideDropdown();
-        clearSelection();
-    });
-
-    // Event listener para remover
-    elements.removeBtn.addEventListener('click', function() {
-        clearSelection();
-    });
-
-    // Buscar itens
-    async function searchItems(query) {
-        console.log('🔎 Buscando itens:', query);
-        showLoading();
-
-        try {
-            const response = await fetch(`/api/items/search?q=${encodeURIComponent(query)}`);
-            const data = await response.json();
-            
-            console.log('📦 Dados de itens:', data);
-
-            if (data.success && data.data) {
-                displaySuggestions(data.data);
-            } else {
-                showNoResults();
-            }
-        } catch (error) {
-            console.error('💥 Erro na busca de itens:', error);
-            showError();
-        }
-    }
-
-    // Mostrar loading
-    function showLoading() {
-        elements.dropdown.innerHTML = `
-            <div class="item-search-loading">
-                <div class="spinner-border spinner-border-sm text-success"></div>
-                <div class="mt-2">Buscando itens...</div>
-            </div>
-        `;
-        showDropdown();
-    }
-
-    // Mostrar sugestões
-    function displaySuggestions(items) {
-        console.log(`📋 ${items.length} itens encontrados`);
-        
-        if (items.length === 0) {
-            showNoResults();
             return;
         }
+        
+        // Busca sem limitação de caracteres
+        searchTimeout = setTimeout(() => {
+            searchItems(query);
+        }, 300);
+    }
 
-        elements.dropdown.innerHTML = '';
+    function handleKeydown(e) {
+        if (!isDropdownOpen) return;
+        
+        const items = dropdown.querySelectorAll('.item-search-item');
+        
+        switch(e.key) {
+            case 'ArrowDown':
+                e.preventDefault();
+                currentFocus++;
+                if (currentFocus >= items.length) currentFocus = 0;
+                updateFocus(items);
+                break;
+                
+            case 'ArrowUp':
+                e.preventDefault();
+                currentFocus--;
+                if (currentFocus < 0) currentFocus = items.length - 1;
+                updateFocus(items);
+                break;
+                
+            case 'Enter':
+                e.preventDefault();
+                if (currentFocus >= 0 && items[currentFocus]) {
+                    selectItem(searchResults[currentFocus]);
+                }
+                break;
+                
+            case 'Escape':
+                hideDropdown();
+                input.blur();
+                break;
+        }
+    }
 
-        items.forEach(item => {
-            const itemElement = document.createElement('div');
-            itemElement.className = 'item-suggestion-item';
-            itemElement.innerHTML = `
-                <div class="d-flex align-items-center">
-                    <img src="${item.image_url}" class="rounded me-2" width="32" height="32">
+    function handleFocus() {
+        if (input.value.trim().length > 0 && searchResults.length > 0) {
+            showDropdown();
+        }
+    }
+
+    function handleBlur(e) {
+        setTimeout(() => {
+            if (!dropdown.contains(document.activeElement)) {
+                hideDropdown();
+            }
+        }, 150);
+    }
+
+    function searchItems(query) {
+        showLoading();
+        
+        fetch(`/api/items/search?q=${encodeURIComponent(query)}`, {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            
+            if (data.success && data.data) {
+                searchResults = data.data;
+                displayResults(data.data);
+            } else {
+                searchResults = [];
+                showEmpty();
+            }
+        })
+        .catch(error => {
+            console.error('Erro na busca:', error);
+            hideLoading();
+            showEmpty();
+        });
+    }
+
+    function displayResults(items) {
+        let html = '';
+        
+        items.forEach((item, index) => {
+            const details = [];
+            if (item.sku) details.push(`SKU: ${item.sku}`);
+            if (item.brand) details.push(`Marca: ${item.brand}`);
+            if (item.color) details.push(`Cor: ${item.color}`);
+            if (item.size) details.push(`Tam: ${item.size}`);
+            
+            html += `
+                <button type="button" 
+                        class="dropdown-item item-search-item d-flex align-items-center py-2" 
+                        data-index="${index}">
+                    <img src="${item.image_url || '/images/default-item.png'}" 
+                         class="me-2" 
+                         width="40" 
+                         height="40" 
+                         style="object-fit: cover; border-radius: 4px;">
                     <div class="flex-grow-1">
                         <div class="fw-bold">${item.name}</div>
-                        <small class="text-success fw-bold">${item.formatted_price}</small>
-                        ${item.sku ? `<br><small class="text-muted">SKU: ${item.sku}</small>` : ''}
+                        <small class="text-muted">${details.join(' | ')}</small>
+                        <div class="text-success fw-bold">${item.formatted_price}</div>
                     </div>
-                    <div class="text-end">
-                        <small class="text-muted">Estoque: ${item.stock}</small>
-                    </div>
-                </div>
+                    <small class="text-muted">ID: ${item.id}</small>
+                </button>
             `;
-
-            itemElement.addEventListener('click', () => selectItem(item));
-            elements.dropdown.appendChild(itemElement);
         });
-
+        
+        dropdown.innerHTML = html;
+        
+        // Adicionar event listeners aos itens
+        dropdown.querySelectorAll('.item-search-item').forEach((item, index) => {
+            item.addEventListener('click', () => selectItem(items[index]));
+            item.addEventListener('mouseenter', () => {
+                currentFocus = index;
+                updateFocus(dropdown.querySelectorAll('.item-search-item'));
+            });
+        });
+        
         showDropdown();
     }
 
-    // Sem resultados
-    function showNoResults() {
-        elements.dropdown.innerHTML = `
-            <div class="item-search-no-results">
-                <i class="fas fa-box-open fa-2x mb-2"></i>
-                <div>Nenhum item encontrado</div>
-            </div>
-        `;
-        showDropdown();
-    }
-
-    // Erro
-    function showError() {
-        elements.dropdown.innerHTML = `
-            <div class="item-search-error">
-                <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
-                <div>Erro ao buscar itens</div>
-            </div>
-        `;
-        showDropdown();
-    }
-
-    // Selecionar item
     function selectItem(item) {
-        console.log('📦 Item selecionado:', item.name);
+        input.value = item.name;
+        hiddenInput.value = item.id;
         
-        elements.hiddenInput.value = item.id;
-        elements.priceInput.value = item.price;
-        elements.input.value = item.name;
-        
-        elements.selectedDisplay.querySelector('.item-selected-image').src = item.image_url;
-        elements.selectedDisplay.querySelector('.item-selected-name').textContent = item.name;
-        elements.selectedDisplay.querySelector('.item-selected-price').textContent = item.formatted_price;
-        elements.selectedDisplay.querySelector('.item-selected-sku').textContent = item.sku ? `SKU: ${item.sku}` : 'Sem SKU';
-        
-        elements.selectedDisplay.classList.remove('d-none');
-        elements.clearBtn.classList.add('d-none');
-        hideDropdown();
-
-        // Preencher campo de preço automaticamente
-        const priceField = document.getElementById('item-price');
-        if (priceField) {
-            priceField.value = item.price;
+        // Atualizar preço se o campo existir
+        if (priceInput) {
+            priceInput.value = item.price;
+            
+            // Atualizar também o campo visível de preço
+            const visiblePriceInput = document.getElementById('item-price');
+            if (visiblePriceInput) {
+                visiblePriceInput.value = item.price;
+            }
         }
-
-        // Evento
+        
+        // Atualizar card do item selecionado
+        const details = [];
+        if (item.sku) details.push(`SKU: ${item.sku}`);
+        if (item.brand) details.push(`Marca: ${item.brand}`);
+        if (item.color) details.push(`Cor: ${item.color}`);
+        if (item.size) details.push(`Tam: ${item.size}`);
+        
+        selectedCard.querySelector('.item-image').src = item.image_url || '/images/default-item.png';
+        selectedCard.querySelector('.item-name').textContent = item.name;
+        selectedCard.querySelector('.item-details').textContent = details.join(' | ');
+        selectedCard.querySelector('.item-price').textContent = item.formatted_price;
+        selectedCard.style.display = 'block';
+        
+        hideDropdown();
+        
+        // Disparar evento customizado
         wrapper.dispatchEvent(new CustomEvent('itemSelected', {
             detail: { item: item }
         }));
     }
 
-    // Limpar seleção
     function clearSelection() {
-        elements.hiddenInput.value = '';
-        elements.priceInput.value = '';
-        elements.selectedDisplay.classList.add('d-none');
-        
-        // Limpar campo de preço
-        const priceField = document.getElementById('item-price');
-        if (priceField) {
-            priceField.value = '';
+        input.value = '';
+        hiddenInput.value = '';
+        if (priceInput) {
+            priceInput.value = '';
+            const visiblePriceInput = document.getElementById('item-price');
+            if (visiblePriceInput) {
+                visiblePriceInput.value = '';
+            }
         }
+        selectedCard.style.display = 'none';
+        hideDropdown();
+        currentFocus = -1;
+        searchResults = [];
         
+        // Disparar evento customizado
         wrapper.dispatchEvent(new CustomEvent('itemCleared'));
     }
 
-    // Mostrar/esconder dropdown
+    function updateFocus(items) {
+        items.forEach((item, index) => {
+            if (index === currentFocus) {
+                item.classList.add('active');
+                item.scrollIntoView({ block: 'nearest' });
+            } else {
+                item.classList.remove('active');
+            }
+        });
+    }
+
     function showDropdown() {
-        elements.dropdown.style.display = 'block';
+        dropdown.classList.add('show');
+        isDropdownOpen = true;
     }
 
     function hideDropdown() {
-        elements.dropdown.style.display = 'none';
+        dropdown.classList.remove('show');
+        isDropdownOpen = false;
+        currentFocus = -1;
     }
 
-    // Clique fora
-    document.addEventListener('click', function(e) {
-        if (!wrapper.contains(e.target)) {
-            hideDropdown();
-        }
-    });
+    function showLoading() {
+        dropdown.innerHTML = `
+            <div class="dropdown-item-text text-center py-2">
+                <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                Buscando itens...
+            </div>
+        `;
+        showDropdown();
+    }
+	
+	// ✅ ADICIONE ESTA FUNÇÃO
+    function hideLoading() {
+        // As funções displayResults ou showEmpty já sobrescrevem o conteúdo,
+        // então esta função pode ser vazia ou você pode adicionar lógica para remover o spinner explicitamente.
+        // Por enquanto, uma função vazia já resolve o ReferenceError.
+    }
 
-    console.log('🎉 Componente de itens pronto!');
-});
+    function showEmpty() {
+        dropdown.innerHTML = `
+            <div class="dropdown-item-text text-center py-2 text-muted">
+                <i class="fas fa-search me-2"></i>
+                Nenhum item encontrado
+            </div>
+        `;
+        showDropdown();
+    }
+}
 </script>
+
+<style>
+.item-search-wrapper .dropdown-menu {
+    border: 1px solid #dee2e6;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+.item-search-wrapper .item-search-item:hover,
+.item-search-wrapper .item-search-item.active {
+    background-color: #f8f9fa;
+}
+
+.item-search-wrapper .item-search-item.active {
+    background-color: #e9ecef;
+}
+
+.item-search-wrapper .selected-item-card {
+    animation: slideDown 0.3s ease-out;
+}
+</style>

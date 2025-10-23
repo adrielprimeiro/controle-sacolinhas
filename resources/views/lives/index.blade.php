@@ -59,7 +59,7 @@
             <!-- Sidebar -->
             <div class="col-md-2 sidebar text-white p-0">
                 <div class="p-3">
-                    <h4>Admin</h4>
+                    <h4><i class="fas fa-shopping-bag"></i> Admin</h4>
                     <hr>
                     <ul class="nav flex-column">
                         <li class="nav-item">
@@ -68,7 +68,12 @@
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link text-white" href="{{ route('bags.index') }}"> <!-- Novo item no menu -->
+                            <a class="nav-link text-white active" href="{{ route('admin.sacolinhas.index') }}">
+                                <i class="fas fa-shopping-bag"></i> Sacolinhas
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-white" href="{{ route('bags.index') }}">
                                 <i class="fas fa-broadcast-tower"></i> Live
                             </a>
                         </li>
@@ -361,7 +366,16 @@
 					if (itemWrapper) {
 						itemWrapper.dispatchEvent(new CustomEvent('itemCleared'));
 					}
+//.........................................................
+		            // ✅ RESETAR QUANTIDADE PARA 1
+					document.getElementById('item-quantity').value = '1';
 					
+					// ✅ FOCAR NO CAMPO DE USUÁRIO PARA PRÓXIMA ADIÇÃO
+					const userInput = document.querySelector('[data-user-search="true"] [data-search-input="true"]');
+					if (userInput) {
+						setTimeout(() => userInput.focus(), 100);
+					}
+//.................................................................
 					carregarSacolas();
 				} else {
 					mostrarAlert(data.message, 'danger');
