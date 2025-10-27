@@ -6,34 +6,22 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
-    public function up(): void
+    public function up()
     {
         Schema::create('lives', function (Blueprint $table) {
             $table->id();
             $table->date('data');
+            $table->enum('tipo_live', ['loja-aberta', 'leilao', 'precinho']);
+            $table->string('plataformas'); // Armazenar como string separada por vírgula
             $table->timestamps();
             
-            // Adicione outros campos conforme necessário
-            // Baseado no contexto "sacolinhas":
-            $table->string('nome')->nullable();
-            $table->text('descricao')->nullable();
-            $table->decimal('preco', 8, 2)->nullable();
-            $table->integer('quantidade')->default(0);
-            $table->boolean('ativo')->default(true);
-            
-            // Índices para melhor performance
+            // Índices
             $table->index('data');
-            $table->index('ativo');
+            $table->index('tipo_live');
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
-    public function down(): void
+    public function down()
     {
         Schema::dropIfExists('lives');
     }

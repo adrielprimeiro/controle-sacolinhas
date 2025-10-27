@@ -1,4 +1,6 @@
-C:\serv\sacolinhas
+cd /serv/sacolinhas
+
+docker-compose exec app sh
 
 # Acessar o container MySQL diretamente
 docker exec -it mysql-db mysql -u user -p 
