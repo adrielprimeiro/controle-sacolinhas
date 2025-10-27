@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: ./docker/php
+      dockerfile: Dockerfile
+    container_name: laravel-app
+    restart: unless-stopped
+    working_dir: /var/www
+    volumes:
+      - ./:/var/www
+    environment:
+      - TZ=America/Sao_Paulo
+    networks:
+      - app-network
+    depends_on:
+      - db
+    env_file:
+      - ./.env
+
+  db:
+    image: mysql:8.0
+    container_name: mysql-db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: sacolinhas_db
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+      MYSQL_ROOT_PASSWORD: root_password
+      TZ: America/Sao_Paulo
+    volumes:
+      - dbdata:/var/lib/mysql
+    ports:
+      - "3307:3306"
+    networks:
+      - app-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-server
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./:/var/www
+      - ./docker/nginx:/etc/nginx/conf.d
+    environment:
+      - TZ=America/Sao_Paulo
+    networks:
+      - app-network
+    depends_on:
+      - app
+
+  vite:
+    build:
+      context: .
+      dockerfile: ./docker/node/Dockerfile
+    container_name: vite-dev
+    restart: unless-stopped
+    tty: true
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./:/var/www
+    working_dir: /var/www
+    command: npm run dev -- --host 0.0.0.0
+    environment:
+      - TZ=America/Sao_Paulo
+    networks:
+      - app-network
+    depends_on:
+      - app
+
+volumes:
+  dbdata:
+    driver: local
+
+networks:
+  app-network:
+    driver: bridge

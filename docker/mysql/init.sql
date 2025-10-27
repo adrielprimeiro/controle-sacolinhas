@@ -1,0 +1,8 @@
+-- Este arquivo pode ser usado para rodar comandos SQL iniciais quando o contêiner MySQL inicia.
+-- Por exemplo:
+-- CREATE DATABASE IF NOT EXISTS `test_db`;
+-- USE `test_db`;
+-- CREATE TABLE IF NOT EXISTS `example_table` (
+--     id INT AUTO_INCREMENT PRIMARY KEY,
+--     name VARCHAR(255)
+-- );

@@ -1,0 +1,8 @@
+C:\serv\sacolinhas
+
+# Acessar o container MySQL diretamente
+docker exec -it mysql-db mysql -u user -p 
+
+
+SHOW TABLES;
+
