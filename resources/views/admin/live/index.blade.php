@@ -10,8 +10,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Font Awesome -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-
-    <style>
+<style>
         .sidebar {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
@@ -80,7 +79,6 @@
                     </ul>
                 </div>
             </div>
-
             <!-- Main Content -->
             <div class="col-md-10 p-4">
                 <!-- Header -->
@@ -99,7 +97,6 @@
                                 <option value="precinho">Live do Precinho</option>
                             </select>
                         </div>
-
                         <!-- Checkboxes -->
                         <div>
                             <label class="form-label">Plataformas</label>
@@ -117,7 +114,6 @@
                             </div>
                         </div>
                     </div>
-
                     <!-- Botão -->
                     <button type="button" id="toggle-live" class="btn btn-primary">
                         <i class="fas fa-plus"></i> Nova Live
@@ -135,25 +131,9 @@
                 </div>
 
                 <!-- Lives Ativas -->
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h5 class="mb-0">
-                            <i class="fas fa-broadcast-tower text-danger"></i>
-                            Lives de Hoje
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <div id="lives-container">
-                            <div class="text-center">
-                                <div class="spinner-border text-primary" role="status">
-                                    <span class="visually-hidden">Carregando...</span>
-                                </div>
-                                <p class="mt-2 text-muted">Carregando lives...</p>
-                            </div>
-                        </div>
-                    </div>
+                <div id="live-status-display" class="mb-4">
+                    <!-- O conteúdo será carregado dinamicamente pelo JavaScript -->
                 </div>
-
                 <!-- SEÇÃO COM BUSCA DE USUÁRIO -->
                 <!-- Adicionar Item à Sacola -->
                 <div class="card mb-4 card-disabled" id="filter-card">
@@ -181,7 +161,6 @@
                                         'value' => old('client_id')
                                     ])
                                 </div>
-
                                 <!-- Campo Item - NOVO COMPONENTE -->
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label">
@@ -198,13 +177,13 @@
                                     ])
                                 </div>
                             </div>
-
                             <div class="row">
                                 <!-- Preço -->
-                                <div class="col-md-4 mb-3">
+                                <div class="col-md-6 mb-3"> <!-- Era col-md-4 -->
                                     <label for="item-price" class="form-label">
                                         <i class="fas fa-dollar-sign"></i>
                                         Preço
+                                        <span id="original-price-display" class="text-muted ms-2" style="text-decoration: line-through; display: none;"></span>
                                     </label>
                                     <input type="number"
                                            class="form-control"
@@ -216,25 +195,8 @@
                                            value="{{ old('item_price') }}"
                                            required>
                                 </div>
-
-                                <!-- Quantidade -->
-                                <div class="col-md-4 mb-3">
-                                    <label for="item-quantity" class="form-label">
-                                        <i class="fas fa-hashtag"></i>
-                                        Quantidade
-                                    </label>
-                                    <input type="number"
-                                           class="form-control"
-                                           name="item_quantity"
-                                           id="item-quantity"
-                                           placeholder="1"
-                                           min="1"
-                                           value="{{ old('item_quantity', 1) }}"
-                                           required>
-                                </div>
-
                                 <!-- Botão -->
-                                <div class="col-md-4 mb-3 d-flex align-items-end">
+                                <div class="col-md-6 mb-3 d-flex align-items-end"> <!-- Era col-md-4 -->
                                     <button type="submit" class="btn btn-primary w-100">
                                         <i class="fas fa-plus"></i> Adicionar à Sacola
                                     </button>
@@ -243,7 +205,6 @@
                         </form>
                     </div>
                 </div>
-
                 <!-- Lista de Sacolinhas -->
                 <div class="card">
                     <div class="card-header">
@@ -265,65 +226,116 @@
             </div>
         </div>
     </div>
-
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
     <!-- JavaScript das Lives e Sacolinhas -->
     <script>
         let liveAtiva = null;
+        const DISCOUNT_PERCENTAGE = 0.5; // 50% de desconto para live do 'precinho'
 
-        // Carregar lives ao inicializar a página
         document.addEventListener('DOMContentLoaded', function() {
-            carregarLives();
-            
+            carregarLiveStatus(); // Renomeado para refletir o novo propósito
             // Event listener para seleção de usuário
             const userSearchComponent = document.querySelector('[data-user-search="true"]');
             if (userSearchComponent) {
                 userSearchComponent.addEventListener('userSelected', function(e) {
                     const user = e.detail.user;
                     console.log('Cliente selecionado:', user);
-                    
-                    // Mostrar feedback visual
                     mostrarAlert(`Cliente selecionado: ${user.name}`, 'info');
                     
-                    // Focar no campo de item
                     const itemInput = document.querySelector('[data-item-search="true"] [data-search-input="true"]');
                     if (itemInput) {
                         itemInput.focus();
                     }
                 });
-
                 userSearchComponent.addEventListener('userCleared', function(e) {
                     console.log('Seleção de cliente limpa');
                 });
             }
-
             // Event listener para seleção de item
             const itemSearchComponent = document.querySelector('[data-item-search="true"]');
             if (itemSearchComponent) {
                 itemSearchComponent.addEventListener('itemSelected', function(e) {
                     const item = e.detail.item;
-                    console.log('Item selecionado:', item);
+                    console.log('📦 Item selecionado (via event listener):', item); // Mantendo seu log
+                    console.log('DEBUG: liveAtiva no momento da seleção do item:', liveAtiva); // ADICIONADO
                     
-                    // Mostrar feedback visual
                     mostrarAlert(`Item selecionado: ${item.name} - ${item.formatted_price}`, 'info');
                     
-                    // Focar no campo de quantidade
-                    document.getElementById('item-quantity').focus();
-                });
+                    const itemPriceInput = document.getElementById('item-price');
+                    const originalPriceDisplay = document.getElementById('original-price-display');
 
+                    if (itemPriceInput) {
+                        const isPrecinhoLive = liveAtiva && liveAtiva.tipo_live === 'precinho';
+                        console.log('DEBUG: isPrecinhoLive (true/false):', isPrecinhoLive); // ADICIONADO
+                        
+                        if (isPrecinhoLive) {
+                            const originalPrice = parseFloat(item.price); // Usar item.price conforme seus logs
+                            console.log('DEBUG: Preço Original (item.price):', originalPrice); // ADICIONADO
+                            const discountedPrice = originalPrice * DISCOUNT_PERCENTAGE;
+                            console.log('DEBUG: Preço com Desconto:', discountedPrice); // ADICIONADO
+                            
+                            itemPriceInput.value = discountedPrice.toFixed(2);
+                            originalPriceDisplay.textContent = `R$ ${originalPrice.toFixed(2).replace('.', ',')}`; // Formato com vírgula
+                            originalPriceDisplay.style.display = 'inline';
+                        } else {
+                            console.log('DEBUG: Não é live "precinho" ou liveAtiva não está definida. Usando preço original.'); // ADICIONADO
+                            itemPriceInput.value = parseFloat(item.price).toFixed(2); // Usar item.price
+                            originalPriceDisplay.style.display = 'none';
+                        }
+                    }
+                    const addButton = document.querySelector('#add-item-form button[type="submit"]');
+                    if (addButton) {
+                        setTimeout(() => {
+                            addButton.focus();
+                            console.log('🎯 Foco dado no botão de adicionar');
+                        }, 100); // Pequeno delay para garantir que a seleção foi processada
+                    }                    
+                    // A linha abaixo de focar no campo de quantidade será removida no item 3
+                    // document.getElementById('item-quantity').focus();
+                });
                 itemSearchComponent.addEventListener('itemCleared', function(e) {
                     console.log('Seleção de item limpa');
+                    document.getElementById('item-price').value = '';
+                    document.getElementById('original-price-display').style.display = 'none';
+                });
+			
+			// Validação em tempo real do campo de preço
+            const itemPriceInput = document.getElementById('item-price');
+            if (itemPriceInput) {
+                itemPriceInput.addEventListener('input', function(e) {
+                    const value = parseFloat(e.target.value);
+                    if (isNaN(value) || value < 0) {
+                        e.target.setCustomValidity('Por favor, informe um preço válido');
+                    } else {
+                        e.target.setCustomValidity('');
+                    }
+                });
+                
+                // Permitir apenas números e ponto decimal
+                itemPriceInput.addEventListener('keypress', function(e) {
+                    const char = String.fromCharCode(e.which);
+                    if (!/[0-9\.]/.test(char)) {
+                        e.preventDefault();
+                    }
+                    
+                    // Permitir apenas um ponto decimal
+                    if (char === '.' && e.target.value.includes('.')) {
+                        e.preventDefault();
+                    }
                 });
             }
-
+            }
+			
+			
             // Event listener para o formulário
-            document.getElementById('add-item-form').addEventListener('submit', function(e) {
-                e.preventDefault(); // Sempre prevenir submit padrão
+            document.getElementById('add-item-form').addEventListener('submit', async function(e) {
+                e.preventDefault();
                 
                 const clientId = document.querySelector('input[name="client_id"]').value;
                 const itemId = document.querySelector('input[name="item_id"]').value;
+				const itemPrice = document.getElementById('item-price').value;
                 
                 if (!clientId) {
                     mostrarAlert('Por favor, selecione um cliente primeiro!', 'warning');
@@ -334,65 +346,77 @@
                     mostrarAlert('Por favor, selecione um item primeiro!', 'warning');
                     return false;
                 }
-
+				
+                if (!itemPrice || parseFloat(itemPrice) <= 0) { // ADICIONADO: Validar preço
+                    mostrarAlert('Por favor, informe um preço válido!', 'warning');
+                    return false;
+                }				
+				
                 if (!liveAtiva) {
                     mostrarAlert('Inicie uma live antes de adicionar itens!', 'warning');
                     return false;
                 }
-
-                // Enviar dados via AJAX
                 const formData = new FormData(this);
+                // Como a quantidade foi removida do frontend, definimos explicitamente como 1
+                formData.append('item_quantity', 1); 
+				// ADICIONADO: Garantir que o preço atual seja enviado
+                formData.set('item_price', itemPrice);
+                
                 const button = this.querySelector('button[type="submit"]');
                 const originalText = button.innerHTML;
                 
                 button.disabled = true;
                 button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Adicionando...';
-
-                fetch('/sacolinhas', {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                    },
-                    body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
+                try {
+                    const response = await fetch('/sacolinhas', {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                        },
+                        body: formData
+                    });
+                    const data = await response.json();
                     if (data.success) {
                         mostrarAlert(data.message, 'success');
                         
-                        // Limpar formulário
-                        this.reset();
+                        const itemPriceInput = document.getElementById('item-price');
+                        if (itemPriceInput) {
+                            itemPriceInput.value = '';
+                        }
+                        // Lógica de itemQuantityInput removida
+                        const obsTextarea = document.getElementById('obs');
+                        if (obsTextarea) {
+                            obsTextarea.value = '';
+                        }
                         
-                        // Limpar componentes de busca
                         const userWrapper = document.querySelector('[data-user-search="true"]');
-                        if (userWrapper) {
-                            userWrapper.dispatchEvent(new CustomEvent('userCleared'));
+                        if (userWrapper && typeof userWrapper.clear === 'function') {
+                            userWrapper.clear();
+                            console.log('DEBUG: clearSelection (User) chamada pelo formulário principal.');
                         }
                         
                         const itemWrapper = document.querySelector('[data-item-search="true"]');
-                        if (itemWrapper) {
-                            itemWrapper.dispatchEvent(new CustomEvent('itemCleared'));
+                        if (itemWrapper && typeof itemWrapper.clear === 'function') {
+                            itemWrapper.clear();
+                            console.log('DEBUG: clearSelection (Item) chamada pelo formulário principal.');
                         }
+                        document.getElementById('original-price-display').style.display = 'none'; // Limpa o display do preço original
                         
-                        // Recarregar sacolas
                         carregarSacolas();
                         
                     } else {
                         mostrarAlert(data.message, 'danger');
                     }
-                })
-                .catch(error => {
+                } catch (error) {
                     console.error('Erro:', error);
                     mostrarAlert('Erro ao adicionar item à sacola', 'danger');
-                })
-                .finally(() => {
+                } finally {
                     button.disabled = false;
                     button.innerHTML = originalText;
-                });
+                }
             });
         });
-
-        // Função para carregar sacolas
+        // Função para carregar sacolas (sem alterações significativas aqui)
         function carregarSacolas() {
             if (!liveAtiva) {
                 document.getElementById('bags-list').innerHTML = `
@@ -404,7 +428,6 @@
                 `;
                 return;
             }
-
             fetch(`/api/sacolinhas/live/${liveAtiva.id}`)
                 .then(response => response.json())
                 .then(data => {
@@ -418,8 +441,8 @@
                     console.error('Erro:', error);
                 });
         }
-
-        // Função para exibir sacolas
+		
+        // Função para exibir sacolas (sem alterações significativas aqui)
         function exibirSacolas(bags) {
             const container = document.getElementById('bags-list');
             
@@ -433,7 +456,7 @@
                 `;
                 return;
             }
-
+            
             let html = '';
             bags.forEach(bag => {
                 html += `
@@ -446,7 +469,7 @@
                                     <small class="text-muted">${bag.client.email} (ID: ${bag.client.id})</small>
                                 </div>
                                 <div class="text-end">
-                                    <span class="badge bg-primary">${bag.total_quantity} item(s)</span>
+                                    <span class="badge bg-primary">${bag.items.length} item(s)</span>
                                     <div class="fw-bold text-success">${bag.formatted_total}</div>
                                 </div>
                             </div>
@@ -458,10 +481,8 @@
                                         <tr>
                                             <th>Item</th>
                                             <th>Detalhes</th>
-                                            <th>Qtd</th>
-                                            <th>Preço Unit.</th>
-                                            <th>Total</th>
-                                            <th width="100">Ações</th>
+                                            <th>Preço</th>
+                                            <th width="80">Ações</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -469,7 +490,7 @@
                 
                 bag.items.forEach(item => {
                     const details = [];
-                    if (item.item_sku) details.push(`SKU: ${item.item_sku}`);
+                    if (item.item_sku) details.push(`Código: ${item.item_sku}`); // Mudou de "SKU" para "Código"
                     if (item.item_brand) details.push(`Marca: ${item.item_brand}`);
                     if (item.item_color) details.push(`Cor: ${item.item_color}`);
                     if (item.item_size) details.push(`Tam: ${item.item_size}`);
@@ -480,20 +501,13 @@
                                 <strong>${item.item_name}</strong>
                             </td>
                             <td>
-                                <small class="text-muted">${details.join(' | ')}</small>
+                                <small class="text-muted">${details.length > 0 ? details.join(' | ') : 'Sem detalhes adicionais'}</small>
                             </td>
-                            <td><span class="badge bg-secondary">${item.quantity}</span></td>
-                            <td>${item.formatted_unit_price}</td>
                             <td class="fw-bold text-success">${item.formatted_total_price}</td>
                             <td>
-                                <div class="btn-group btn-group-sm">
-                                    <button class="btn btn-outline-warning" onclick="removerUmItem(${item.item_id}, ${bag.client.id})" title="Remover 1">
-                                        <i class="fas fa-minus"></i>
-                                    </button>
-                                    <button class="btn btn-outline-danger" onclick="removerTodosItens(${item.item_id}, ${bag.client.id}, ${item.quantity})" title="Remover todos">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </div>
+                                <button class="btn btn-sm btn-outline-danger" onclick="removerItem(${item.item_id}, ${bag.client.id})" title="Remover item">
+                                    <i class="fas fa-trash"></i>
+                                </button>
                             </td>
                         </tr>
                     `;
@@ -507,37 +521,21 @@
                     </div>
                 `;
             });
-
             container.innerHTML = html;
         }
 
-        // Função para remover um item
-        function removerUmItem(itemId, userId) {
-            if (!confirm('Remover 1 unidade deste item da sacola?')) {
+        // Função simplificada para remover item único
+        function removerItem(itemId, userId) {
+            if (!confirm('Tem certeza que deseja remover este item da sacola?')) {
                 return;
             }
             
-            removerItens(itemId, userId, 1);
-        }
-
-        // Função para remover todos os itens
-        function removerTodosItens(itemId, userId, quantity) {
-            if (!confirm(`Remover todas as ${quantity} unidades deste item da sacola?`)) {
-                return;
-            }
-            
-            removerItens(itemId, userId, quantity);
-        }
-
-        // Função genérica para remover itens
-        function removerItens(itemId, userId, quantity) {
             const data = {
                 item_id: itemId,
                 user_id: userId,
-                live_id: liveAtiva.id,
-                quantity: quantity
+                live_id: liveAtiva.id
             };
-
+            
             fetch('/api/sacolinhas/remove', {
                 method: 'DELETE',
                 headers: {
@@ -561,8 +559,11 @@
             });
         }
 
-        // Função para carregar lives
-        function carregarLives() {
+
+        // Função para carregar status da live (renomeada e modificada)
+        function carregarLiveStatus() {
+            console.log('🔄 Carregando status da live...');
+            
             fetch('/lives', {
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest'
@@ -570,72 +571,128 @@
             })
             .then(response => response.json())
             .then(data => {
-                const container = document.getElementById('lives-container');
-                container.innerHTML = '';
-
-                if (data.success && data.lives && data.lives.length > 0) {
-                    liveAtiva = data.lives[0];
-                    const liveElement = criarElementoLive(liveAtiva);
-                    container.appendChild(liveElement);
+                console.log('📡 Resposta da API de live(carregarLiveStatus):', data);
+                const liveStatusDisplay = document.getElementById('live-status-display');
+                // const toggleLiveBtn = document.getElementById('toggle-live'); // REMOVIDO: Não precisamos mais manipular o onclick aqui
+                
+                if (data.success && data.live) {
+                    // Live ativa encontrada
+                    liveAtiva = data.live;
+					console.log('DEBUG: Live ativa definida:', liveAtiva); 
                     
-                    // Carregar sacolas quando há live ativa
-                    setTimeout(carregarSacolas, 500);
-                } else {
-                    liveAtiva = null;
-                    container.innerHTML = `
-                        <div class="text-center text-muted">
-                            <i class="fas fa-broadcast-tower fa-3x mb-3 opacity-50"></i>
-                            <p>Nenhuma live ativa no momento.</p>
-                            <small>Clique em "Nova Live" para começar uma transmissão.</small>
+                    // Determinar cor do badge baseado no tipo
+                    let badgeClass = 'bg-primary';
+                    let liveTypeText = data.live.tipo_live;
+                    
+                    if (data.live.tipo_live === 'precinho') {
+                        badgeClass = 'bg-warning text-dark';
+                        liveTypeText = 'Precinho (50% OFF)';
+                    } else if (data.live.tipo_live === 'outlet') {
+                        badgeClass = 'bg-danger';
+                        liveTypeText = 'Outlet';
+                    }
+                    
+                    liveStatusDisplay.innerHTML = `
+                        <div class="alert alert-success border-success">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    <i class="fas fa-broadcast-tower text-success"></i>
+                                    <strong>Live Ativa:</strong>
+                                    <span class="badge ${badgeClass} ms-2">${liveTypeText}</span>
+                                    <small class="text-muted ms-2">Plataformas: ${data.live.plataformas}</small>
+                                </div>
+                                <small class="text-muted">ID: ${data.live.id}</small>
+                            </div>
                         </div>
                     `;
                     
-                    // Limpar sacolas quando não há live
-                    carregarSacolas();
+                    // REMOVIDO: Atualizar botão (será feito por atualizarEstadoControlesLive no finally)
+                    // toggleLiveBtn.innerHTML = '<i class="fas fa-stop"></i> Encerrar Live';
+                    // toggleLiveBtn.className = 'btn btn-danger w-100';
+                    // toggleLiveBtn.onclick = () => encerrarLive(data.live.id); // REMOVIDO: Evita chamadas duplicadas
+                    
+                    // Carregar sacolas após um pequeno delay
+                    setTimeout(() => {
+                        carregarSacolas(data.live.id);
+                    }, 500);
+                    
+                } else {
+                    // Nenhuma live ativa
+                    liveAtiva = null;
+					console.log('DEBUG: Nenhuma live ativa. liveAtiva = null');
+                    liveStatusDisplay.innerHTML = `
+                        <div class="alert alert-info border-info">
+                            <i class="fas fa-info-circle text-info"></i>
+                            Nenhuma live ativa no momento. Crie uma nova live para começar.
+                        </div>
+                    `;
+                    
+                    // REMOVIDO: Atualizar botão (será feito por atualizarEstadoControlesLive no finally)
+                    // toggleLiveBtn.innerHTML = '<i class="fas fa-plus"></i> Nova Live';
+                    // toggleLiveBtn.className = 'btn btn-primary w-100';
+                    // toggleLiveBtn.onclick = criarNovaLive; // REMOVIDO: Evita chamadas duplicadas
+                    
+                    // Limpar lista de sacolas
+                    document.getElementById('bags-list').innerHTML = `
+                        <div class="text-center text-muted py-5">
+                            <i class="fas fa-shopping-bag fa-3x mb-3 opacity-50"></i>
+                            <h5>Nenhuma sacola criada ainda</h5>
+                            <p>Inicie uma live e adicione itens às sacolas dos clientes.</p>
+                        </div>
+                    `;
                 }
-
-                atualizarEstadoBotao();
             })
             .catch(error => {
-                console.error('Erro ao carregar lives:', error);
-                mostrarAlert('Erro ao carregar lives', 'danger');
+                console.error('❌ Erro ao carregar status da live:', error);
+                document.getElementById('live-status-display').innerHTML = `
+                    <div class="alert alert-danger border-danger">
+                        <i class="fas fa-exclamation-triangle text-danger"></i>
+                        Erro ao carregar status da live.
+                    </div>
+                `;
+            })
+            .finally(() => { // ADICIONADO: Garante que os controles da UI sejam atualizados após a requisição
+                atualizarEstadoControlesLive();
             });
         }
-
-        // Função para criar elemento de live
-        function criarElementoLive(live) {
-            const div = document.createElement('div');
-            div.className = 'border rounded p-3 mb-2 bg-light border-success';
-            div.innerHTML = `
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h6 class="mb-1">
-                            <i class="fas fa-broadcast-tower text-danger"></i>
-                            <strong>${live.tipo_live_formatado}</strong>
-                        </h6>
-                        <small class="text-muted">
-                            <i class="fas fa-calendar"></i> ${live.data} às ${live.created_at}
-                        </small>
-                        <br>
-                        <small class="text-info">
-                            <i class="fas fa-share-alt"></i> 
-                            Plataformas: ${live.plataformas.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(', ')}
-                        </small>
-                    </div>
-                    <div>
-                        <span class="badge bg-success fs-6">
-                            <i class="fas fa-circle"></i> ATIVA
-                        </span>
-                        <button class="btn btn-sm btn-danger ms-2" onclick="encerrarLive(${live.id})" title="Encerrar Live">
-                            <i class="fas fa-times"></i> Encerrar
-                        </button>
+        // Função para criar elemento de status da live (nova função)
+        function criarElementoLiveStatus(live) {
+            // Assumindo que o objeto live tem propriedades como tipo_live, data, created_at, plataformas
+            const formattedPlatforms = live.plataformas ? live.plataformas.split(',').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(', ') : '';
+            const formattedDate = new Date(live.data).toLocaleDateString('pt-BR');
+            const formattedTime = new Date(live.created_at).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
+            return `
+                <div class="card border-success mb-3">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1">
+                                    <i class="fas fa-broadcast-tower text-danger"></i>
+                                    <strong>Live ${live.tipo_live.replace('-', ' ').toUpperCase()}</strong>
+                                </h6>
+                                <small class="text-muted">
+                                    <i class="fas fa-calendar"></i> ${formattedDate} às ${formattedTime}
+                                </small>
+                                <br>
+                                <small class="text-info">
+                                    <i class="fas fa-share-alt"></i> 
+                                    Plataformas: ${formattedPlatforms}
+                                </small>
+                            </div>
+                            <div>
+                                <span class="badge bg-success fs-6">
+                                    <i class="fas fa-circle"></i> ATIVA
+                                </span>
+                                <button class="btn btn-sm btn-danger ms-2" onclick="encerrarLive(${live.id})" title="Encerrar Live">
+                                    <i class="fas fa-times"></i> Encerrar
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             `;
-            return div;
         }
-
-        // Função para mostrar alertas
+        // Função para mostrar alertas (sem alterações)
         function mostrarAlert(message, type = 'success') {
             const alertContainer = document.getElementById('alert-container');
             const alert = document.createElement('div');
@@ -653,26 +710,33 @@
                 }
             }, 5000);
         }
-
-        // Função para atualizar estado do botão
-        function atualizarEstadoBotao() {
-            const button = document.getElementById('toggle-live');
-            const card = document.getElementById('filter-card');
-
+        // Função para atualizar estado dos controles de live (renomeada e modificada)
+        function atualizarEstadoControlesLive() {
+            const toggleButton = document.getElementById('toggle-live');
+            const filterCard = document.getElementById('filter-card');
+            const liveTypeSelect = document.getElementById('live-type');
+            const platformCheckboxes = document.querySelectorAll('.platform-checkbox');
             if (liveAtiva) {
-                button.classList.remove('btn-primary');
-                button.classList.add('btn-danger');
-                button.innerHTML = '<i class="fas fa-times"></i> Encerrar Live';
-                card.classList.remove('card-disabled');
+                toggleButton.classList.remove('btn-primary');
+                toggleButton.classList.add('btn-danger');
+                toggleButton.innerHTML = '<i class="fas fa-times"></i> Encerrar Live';
+                filterCard.classList.remove('card-disabled');
+                
+                // Desabilita tipo de live e plataformas
+                liveTypeSelect.disabled = true;
+                platformCheckboxes.forEach(checkbox => checkbox.disabled = true);
             } else {
-                button.classList.remove('btn-danger');
-                button.classList.add('btn-primary');
-                button.innerHTML = '<i class="fas fa-plus"></i> Nova Live';
-                card.classList.add('card-disabled');
+                toggleButton.classList.remove('btn-danger');
+                toggleButton.classList.add('btn-primary');
+                toggleButton.innerHTML = '<i class="fas fa-plus"></i> Nova Live';
+                filterCard.classList.add('card-disabled');
+
+                // Habilita tipo de live e plataformas
+                liveTypeSelect.disabled = false;
+                platformCheckboxes.forEach(checkbox => checkbox.disabled = false);
             }
         }
-
-        // Event listener para o botão toggle
+        // Event listener para o botão toggle (sem alterações)
         document.getElementById('toggle-live').addEventListener('click', function() {
             if (liveAtiva) {
                 encerrarLive(liveAtiva.id);
@@ -681,7 +745,7 @@
             }
         });
 
-        // Função para criar nova live
+        // Função para criar nova live (sem alterações significativas, apenas a chamada para carregarLiveStatus)
         function criarNovaLive() {
             const tipoLive = document.getElementById('live-type').value;
             const plataformas = Array.from(document.querySelectorAll('.platform-checkbox:checked'))
@@ -691,16 +755,13 @@
                 mostrarAlert('Selecione pelo menos uma plataforma!', 'warning');
                 return;
             }
-
             const dados = {
                 tipo_live: tipoLive,
                 plataformas: plataformas
             };
-
             const button = document.getElementById('toggle-live');
             button.disabled = true;
             button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Criando...';
-
             fetch('/lives', {
                 method: 'POST',
                 headers: {
@@ -714,8 +775,8 @@
             .then(data => {
                 if (data.success) {
                     mostrarAlert(data.message, 'success');
-                    liveAtiva = data.live;
-                    carregarLives();
+                    liveAtiva = data.live; // Atualiza liveAtiva com a live recém-criada
+                    carregarLiveStatus(); // Atualiza o status e os controles
                 } else {
                     mostrarAlert(data.message || 'Erro ao criar live', 'danger');
                 }
@@ -726,16 +787,14 @@
             })
             .finally(() => {
                 button.disabled = false;
-                atualizarEstadoBotao();
+                // REMOVIDO: atualizarEstadoControlesLive(); // Agora é chamado por carregarLiveStatus().finally
             });
         }
-
-        // Função para encerrar live
+        // Função para encerrar live (sem alterações significativas, apenas a chamada para carregarLiveStatus)
         function encerrarLive(liveId) {
             if (!confirm('Tem certeza que deseja encerrar esta live?')) {
                 return;
             }
-
             fetch(`/lives/${liveId}`, {
                 method: 'DELETE',
                 headers: {
@@ -748,8 +807,8 @@
             .then(data => {
                 if (data.success) {
                     mostrarAlert(data.message, 'success');
-                    liveAtiva = null;
-                    carregarLives();
+                    liveAtiva = null; // Limpa a live ativa
+                    carregarLiveStatus(); // Atualiza o status e os controles
                 } else {
                     mostrarAlert(data.message || 'Erro ao encerrar live', 'danger');
                 }
@@ -757,8 +816,179 @@
             .catch(error => {
                 console.error('Erro:', error);
                 mostrarAlert('Erro ao encerrar live', 'danger');
+            })
+            .finally(() => {
+                // ADICIONADO: Se o botão foi desabilitado, reabilitá-lo aqui.
+                // Não é necessário chamar atualizarEstadoControlesLive() aqui, pois carregarLiveStatus().finally já faz isso.
+                // Se você tiver um estado de carregamento para o botão, você o redefiniria aqui.
             });
         }
+    function selectItem(item) {
+        console.log('📦 Item selecionado(selectItem):', item);
+		console.log('DEBUG: liveAtiva no momento da seleção do item:', liveAtiva); 
+        
+        // Atualizar campos hidden
+        const itemIdInput = itemSearchWrapper.querySelector('[data-selected-id]');
+        const itemDisplayCard = itemSearchWrapper.querySelector('[data-selected-display]');
+        
+        itemIdInput.value = item.id;
+        
+        // Mostrar card de item selecionado
+        itemDisplayCard.innerHTML = `
+            <div class="card border-success">
+                <div class="card-body py-2">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-grow-1">
+                            <h6 class="mb-1">${item.name}</h6>
+                            <small class="text-muted">
+                                SKU: ${item.sku || 'N/A'} | 
+                                Preço: ${item.formatted_price}
+                            </small>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-danger" data-clear-btn="true">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        itemDisplayCard.classList.remove('d-none');
+        console.log('DEBUG: Card de exibição do item (data-selected-display) agora tem classes:', itemDisplayCard.classList);
+        
+        // Limpar campo de busca
+        const searchInput = itemSearchWrapper.querySelector('[data-search-input]');
+        searchInput.value = '';
+        
+        // Esconder dropdown
+        const resultsContainer = itemSearchWrapper.querySelector('[data-results-container]');
+        resultsContainer.style.display = 'none';
+        
+        // ===== CORRIGIR AQUI: Preencher o campo de preço =====
+        const priceInput = document.getElementById('item-price');
+        const originalPriceDisplay = document.getElementById('original-price-display');
+        
+        if (priceInput) {
+            // Verificar se é live do tipo "precinho" para aplicar desconto
+            const isPrecinhoLive = liveAtiva && liveAtiva.tipo_live === 'precinho';
+			console.log('DEBUG: isPrecinhoLive (true/false):', isPrecinhoLive); 
+            
+            if (isPrecinhoLive) {
+                // Live precinho: mostrar preço com desconto e preço original riscado
+                const originalPrice = parseFloat(item.price);
+				console.log('DEBUG: Preço Original (item.price):', originalPrice);
+                const discountedPrice = originalPrice * DISCOUNT_PERCENTAGE; // 50% de desconto
+				console.log('DEBUG: Preço com Desconto:', discountedPrice);
+                
+                priceInput.value = discountedPrice.toFixed(2);
+                originalPriceDisplay.textContent = item.formatted_price;
+                originalPriceDisplay.style.display = 'inline';
+            } else {
+                // Outras lives: preço normal, sem valor riscado
+				console.log('DEBUG: Não é live "precinho" ou liveAtiva não está definida. Usando preço original.'); 
+                priceInput.value = parseFloat(item.price).toFixed(2);
+                originalPriceDisplay.style.display = 'none';
+            }
+        }
+        
+        // Configurar botão de limpar
+        const clearBtn = itemDisplayCard.querySelector('[data-clear-btn]');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => clearSelection('item'));
+        }
+        
+        // Salvar item selecionado globalmente
+        selectedItem = item;
+        console.log('Item selecionado:', selectedItem);
+        
+        // Disparar evento personalizado
+        document.dispatchEvent(new CustomEvent('itemSelected', { detail: item }));
+    }
+function clearSelection(type) {
+        console.log(`DEBUG: clearSelection (${type.charAt(0).toUpperCase() + type.slice(1)}) chamada.`);
+        
+        if (type === 'user') {
+            // Limpar seleção de usuário
+            const userDisplayCard = userSearchWrapper.querySelector('[data-selected-display]');
+            const userSearchInput = userSearchWrapper.querySelector('[data-search-input]');
+            const userSelectedId = userSearchWrapper.querySelector('[data-selected-id]');
+            const userClearBtn = userSearchWrapper.querySelector('[data-clear-btn]');
+            const userResultsContainer = userSearchWrapper.querySelector('[data-results-container]');
+            
+            userDisplayCard.classList.add('d-none');
+            console.log('DEBUG: Card de exibição do usuário (data-selected-display) agora tem classes:', userDisplayCard.classList);
+            
+            userSearchInput.value = '';
+            console.log('DEBUG: Campo de busca de usuário (data-search-input) limpo.');
+            
+            userSelectedId.value = '';
+            
+            if (userClearBtn) {
+                userClearBtn.style.display = 'none';
+                console.log('DEBUG: Botão de limpar (data-clear-btn) escondido.');
+            }
+            
+            userResultsContainer.style.display = 'none';
+            console.log('DEBUG: Dropdown de sugestões de usuário escondido.');
+            
+            userHighlightedIndex = -1;
+            console.log('DEBUG: highlightedIndex resetado.');
+            
+            selectedUser = null;
+            console.log('Seleção de cliente limpa');
+            
+            document.dispatchEvent(new CustomEvent('userCleared'));
+            console.log('DEBUG: Evento userCleared disparado.');
+            
+        } else if (type === 'item') {
+            // Limpar seleção de item
+            const itemDisplayCard = itemSearchWrapper.querySelector('[data-selected-display]');
+            const itemSearchInput = itemSearchWrapper.querySelector('[data-search-input]');
+            const itemSelectedId = itemSearchWrapper.querySelector('[data-selected-id]');
+            const itemClearBtn = itemSearchWrapper.querySelector('[data-clear-btn]');
+            const itemResultsContainer = itemSearchWrapper.querySelector('[data-results-container]');
+            
+            itemDisplayCard.classList.add('d-none');
+            console.log('DEBUG: Card de exibição do item (data-selected-display) agora tem classes:', itemDisplayCard.classList);
+            
+            itemSearchInput.value = '';
+            console.log('DEBUG: Campo de busca de item (data-search-input) limpo.');
+            
+            itemSelectedId.value = '';
+            
+            if (itemClearBtn) {
+                itemClearBtn.style.display = 'none';
+                console.log('DEBUG: Botão de limpar (data-clear-btn) escondido.');
+            }
+            
+            itemResultsContainer.style.display = 'none';
+            console.log('DEBUG: Dropdown de sugestões de item escondido.');
+            
+            itemHighlightedIndex = -1;
+            console.log('DEBUG: highlightedIndex resetado.');
+            
+            // ===== CORRIGIR AQUI: Limpar campo de preço e preço original =====
+            const priceInput = document.getElementById('item-price');
+            const originalPriceDisplay = document.getElementById('original-price-display');
+            
+            if (priceInput) {
+                priceInput.value = '';
+                console.log('DEBUG: Campo de preço externo (item-price) limpo.');
+            }
+            
+            if (originalPriceDisplay) {
+                originalPriceDisplay.style.display = 'none';
+                originalPriceDisplay.textContent = '';
+                console.log('DEBUG: Preço original riscado escondido.');
+            }
+            
+            selectedItem = null;
+            console.log('Seleção de item limpa');
+            
+            document.dispatchEvent(new CustomEvent('itemCleared'));
+            console.log('DEBUG: Evento itemCleared disparado.');
+        }
+    }
     </script>
 </body>
 </html>

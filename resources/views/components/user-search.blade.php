@@ -9,7 +9,7 @@
 				type="text" 
 				class="form-control user-search-input" 
 				placeholder="{{ $placeholder ?? 'Buscar por nome, email ou ID...' }}"
-				autocomplete="new-password"
+				autocomplete="off"
 				autocapitalize="none"
 				autocorrect="off"
 				spellcheck="false"
@@ -95,20 +95,25 @@
 .user-search-error {
     color: #dc3545;
 }
+.user-suggestion-item.highlighted,
+.item-suggestion-item.highlighted {
+    background-color: #e9ecef; /* Cor de destaque */
+    border-left: 3px solid #007bff; /* Borda para indicar destaque */
+}
 </style>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🔍 Inicializando busca de usuários...');
-    
+
     const wrapper = document.querySelector('[data-user-search="true"]');
     if (!wrapper) {
-        console.error('❌ Wrapper não encontrado');
+        console.error('❌ Wrapper de busca de usuário não encontrado');
         return;
     }
-    
-    console.log('✅ Wrapper encontrado');
-    
+
+    console.log('✅ Wrapper de busca de usuário encontrado');
+
     const elements = {
         input: wrapper.querySelector('[data-search-input="true"]'),
         dropdown: wrapper.querySelector('[data-suggestions="true"]'),
@@ -121,60 +126,131 @@ document.addEventListener('DOMContentLoaded', function() {
     // Verificar elementos
     const missing = Object.keys(elements).filter(key => !elements[key]);
     if (missing.length > 0) {
-        console.error('❌ Elementos não encontrados:', missing);
+        console.error('❌ Elementos de busca de usuário não encontrados:', missing);
         return;
     }
-    
-    console.log('✅ Todos os elementos encontrados');
+
+    console.log('✅ Todos os elementos de busca de usuário encontrados');
 
     let debounceTimer;
+    let highlightedIndex = -1; // Índice do item destacado para navegação por teclado
+
+    // Função para destacar um item na lista
+    function highlightItem(index) {
+        const items = elements.dropdown.querySelectorAll('.user-suggestion-item');
+        items.forEach((item, i) => {
+            if (i === index) {
+                item.classList.add('highlighted');
+                item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            } else {
+                item.classList.remove('highlighted');
+            }
+        });
+        highlightedIndex = index;
+    }
+
+    // Função para limpar completamente a seleção e o estado da UI
+    function clearSelection() {
+        console.log('DEBUG: clearSelection (User) chamada.');
+
+        // Limpa o input oculto (ID do usuário)
+        elements.hiddenInput.value = '';
+
+        // Esconde o card de exibição do usuário selecionado
+        elements.selectedDisplay.classList.add('d-none');
+        console.log('DEBUG: Card de exibição do usuário (data-selected-display) agora tem classes:', elements.selectedDisplay.classList);
+
+        // Limpa o campo de texto visível
+        elements.input.value = '';
+        console.log('DEBUG: Campo de busca de usuário (data-search-input) limpo.');
+
+        // Esconde o botão de limpar (o "X" ao lado do campo de busca)
+        elements.clearBtn.classList.add('d-none');
+        console.log('DEBUG: Botão de limpar (data-clear-btn) escondido.');
+
+        // Esconde o dropdown de sugestões
+        hideDropdown();
+        console.log('DEBUG: Dropdown de sugestões de usuário escondido.');
+
+        // Reseta o índice de destaque para navegação por teclado
+        highlightedIndex = -1;
+        console.log('DEBUG: highlightedIndex resetado.');
+
+        // Dispara o evento customizado
+        wrapper.dispatchEvent(new CustomEvent('userCleared'));
+        console.log('DEBUG: Evento userCleared disparado.');
+    }
+
+    // EXPOR A FUNÇÃO clearSelection através do wrapper
+    wrapper.clear = clearSelection; // <--- ADICIONE ESTA LINHA
 
     // Event listener para input
     elements.input.addEventListener('input', function(e) {
         const query = e.target.value.trim();
-        console.log('📝 Digitando:', query);
-        
+        console.log('📝 Digitando (User):', query);
+
         if (query.length > 0) {
             elements.clearBtn.classList.remove('d-none');
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => searchUsers(query), 300);
         } else {
-            elements.clearBtn.classList.add('d-none');
-            hideDropdown();
+            // Se o campo de busca estiver vazio, limpa tudo
+            clearSelection();
         }
     });
 
-    // Event listener para limpar
-    elements.clearBtn.addEventListener('click', function() {
-        elements.input.value = '';
-        elements.clearBtn.classList.add('d-none');
-        hideDropdown();
-        clearSelection();
+    // Event listener para keydown (setas e enter)
+    elements.input.addEventListener('keydown', function(e) {
+        const items = elements.dropdown.querySelectorAll('.user-suggestion-item');
+        if (items.length === 0) return;
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            highlightedIndex = (highlightedIndex + 1) % items.length;
+            highlightItem(highlightedIndex);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            highlightedIndex = (highlightedIndex - 1 + items.length) % items.length;
+            highlightItem(highlightedIndex);
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (highlightedIndex !== -1 && items[highlightedIndex]) {
+                items[highlightedIndex].click();
+            } else if (items.length > 0) {
+                items[0].click();
+            }
+        }
     });
 
-    // Event listener para remover
+    // Event listener para o botão de limpar (ao lado do input)
+    elements.clearBtn.addEventListener('click', function() {
+        console.log('DEBUG: Botão de limpar (User) clicado.');
+        clearSelection(); // Chama a função que limpa tudo
+    });
+
+    // Event listener para o botão de remover (no card de seleção)
     elements.removeBtn.addEventListener('click', function() {
-        clearSelection();
+        console.log('DEBUG: Botão de remover (User) do card clicado.');
+        clearSelection(); // Chama a função que limpa tudo
     });
 
     // Buscar usuários
     async function searchUsers(query) {
-        console.log('🔎 Buscando:', query);
+        console.log('🔎 Buscando usuários:', query);
         showLoading();
 
         try {
             const response = await fetch(`/api/users/search?q=${encodeURIComponent(query)}&role=client`);
             const data = await response.json();
-            
-            console.log('📦 Dados:', data);
 
+            console.log('📦 Dados de usuários recebidos:', data);
             if (data.success && data.data) {
                 displaySuggestions(data.data);
             } else {
                 showNoResults();
             }
         } catch (error) {
-            console.error('💥 Erro:', error);
+            console.error('💥 Erro na busca de usuários:', error);
             showError();
         }
     }
@@ -188,12 +264,13 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         `;
         showDropdown();
+        highlightedIndex = -1;
     }
 
     // Mostrar sugestões
     function displaySuggestions(users) {
         console.log(`📋 ${users.length} usuários encontrados`);
-        
+
         if (users.length === 0) {
             showNoResults();
             return;
@@ -222,6 +299,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         showDropdown();
+        highlightedIndex = -1;
     }
 
     // Sem resultados
@@ -233,6 +311,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         `;
         showDropdown();
+        highlightedIndex = -1;
     }
 
     // Erro
@@ -244,35 +323,31 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         `;
         showDropdown();
+        highlightedIndex = -1;
     }
 
     // Selecionar usuário
     function selectUser(user) {
-        console.log('👤 Selecionado:', user.name);
-        
+        console.log('�� Selecionado (User):', user.name);
+
         elements.hiddenInput.value = user.id;
         elements.input.value = user.name;
-        
+
         elements.selectedDisplay.querySelector('.user-selected-avatar').src = user.avatar_url;
         elements.selectedDisplay.querySelector('.user-selected-name').textContent = user.name;
         elements.selectedDisplay.querySelector('.user-selected-email').textContent = user.email;
-        
-        elements.selectedDisplay.classList.remove('d-none');
-        elements.clearBtn.classList.add('d-none');
+
+        elements.selectedDisplay.classList.remove('d-none'); // Mostra o card
+        console.log('DEBUG: Card de exibição do usuário (data-selected-display) agora tem classes:', elements.selectedDisplay.classList);
+
+        elements.clearBtn.classList.add('d-none'); // Esconde o botão de limpar do input (o "X" do input)
         hideDropdown();
+        highlightedIndex = -1;
 
         // Evento
         wrapper.dispatchEvent(new CustomEvent('userSelected', {
             detail: { user: user }
         }));
-    }
-
-    // Limpar seleção
-    function clearSelection() {
-        elements.hiddenInput.value = '';
-        elements.selectedDisplay.classList.add('d-none');
-        
-        wrapper.dispatchEvent(new CustomEvent('userCleared'));
     }
 
     // Mostrar/esconder dropdown
@@ -291,6 +366,15 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    console.log('🎉 Componente pronto!');
+    // Lógica para pré-preencher se houver um valor inicial
+    if (elements.hiddenInput.value) {
+        elements.input.value = `ID: ${elements.hiddenInput.value}`; // Placeholder
+        elements.selectedDisplay.classList.remove('d-none');
+        elements.clearBtn.classList.remove('d-none'); // Mostra o botão de limpar
+        console.log('DEBUG: Usuário pré-selecionado (placeholder).');
+    }
+
+    console.log('🎉 Componente de busca de usuário pronto!');
 });
 </script>
+

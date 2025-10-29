@@ -2,110 +2,93 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Live;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
-use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class LiveController extends Controller
 {
+    /**
+     * Buscar live ativa
+     */
     public function index()
     {
         try {
-            // Buscar lives do dia atual
-            $lives = Live::whereDate('data', Carbon::today())
-                        ->orderBy('created_at', 'desc')
-                        ->get();
-
-            // Se for requisição AJAX, retornar JSON
-            if (request()->ajax()) {
+            $live = DB::table('lives')
+                      ->where('ativo', 1)
+                      ->orderBy('created_at', 'desc')
+                      ->first();
+            
+            if (!$live) {
                 return response()->json([
                     'success' => true,
-                    'lives' => $lives->map(function($live) {
-                        return [
-                            'id' => $live->id,
-                            'tipo_live' => $live->tipo_live,
-                            'tipo_live_formatado' => $live->tipo_live_formatado,
-                            'data' => $live->data->format('d/m/Y'),
-                            'plataformas' => $live->plataformas_array,
-                            'plataformas_string' => $live->plataformas,
-                            'created_at' => $live->created_at->format('H:i:s')
-                        ];
-                    })
+                    'message' => 'Nenhuma live ativa no momento',
+                    'live' => null,
+                    'live_id' => null,
+                    'has_active_live' => false
                 ]);
             }
 
-            return view('admin.live.index', compact('lives'));
-            
+            return response()->json([
+                'success' => true,
+                'live_id' => $live->id,
+                'live' => $live,
+                'has_active_live' => true
+            ]);
+
         } catch (\Exception $e) {
-            \Log::error('Erro no LiveController: ' . $e->getMessage());
+            Log::error("Erro ao buscar live ativa: " . $e->getMessage());
             
-            if (request()->ajax()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => $e->getMessage(),
-                    'lives' => []
-                ]);
-            }
-            
-            return view('admin.live.index', ['lives' => collect()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Erro ao buscar live ativa: ' . $e->getMessage(),
+                'has_active_live' => false
+            ], 500);
         }
     }
 
+    /**
+     * Criar nova live
+     */
     public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'tipo_live' => 'required|in:loja-aberta,leilao,precinho',
-            'plataformas' => 'required|array|min:1',
-            'plataformas.*' => 'in:instagram,tiktok,youtube'
-        ], [
-            'tipo_live.required' => 'O tipo de live é obrigatório.',
-            'tipo_live.in' => 'Tipo de live inválido.',
-            'plataformas.required' => 'Selecione pelo menos uma plataforma.',
-            'plataformas.min' => 'Selecione pelo menos uma plataforma.',
-            'plataformas.*.in' => 'Plataforma inválida selecionada.'
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors(),
-                'message' => 'Dados inválidos.'
-            ], 422);
-        }
-
         try {
-            // Verificar se já existe uma live ativa hoje
-            $liveExistente = Live::whereDate('data', Carbon::today())->first();
+            $request->validate([
+                'tipo_live' => 'required|string|in:loja-aberta,precinho,outlet',
+                'plataformas' => 'required|array|min:1',
+                'plataformas.*' => 'string|in:instagram,tiktok,youtube,facebook'
+            ]);
+
+            // Verificar se já existe uma live ativa
+            $liveAtiva = DB::table('lives')->where('ativo', 1)->first();
             
-            if ($liveExistente) {
+            if ($liveAtiva) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Já existe uma live ativa hoje. Encerre a live atual antes de criar uma nova.'
+                    'message' => 'Já existe uma live ativa. Encerre-a antes de criar uma nova.'
                 ], 400);
             }
 
-            $live = Live::create([
+            // Criar nova live
+            $liveId = DB::table('lives')->insertGetId([
+                'data' => now()->format('Y-m-d'),
                 'tipo_live' => $request->tipo_live,
-                'data' => Carbon::today(),
-                'plataformas' => $request->plataformas // O mutator vai converter para string
+                'plataformas' => implode(',', $request->plataformas),
+                'ativo' => true,
+                'created_at' => now(),
+                'updated_at' => now()
             ]);
+
+            $live = DB::table('lives')->where('id', $liveId)->first();
 
             return response()->json([
                 'success' => true,
                 'message' => 'Live criada com sucesso!',
-                'live' => [
-                    'id' => $live->id,
-                    'tipo_live' => $live->tipo_live,
-                    'tipo_live_formatado' => $live->tipo_live_formatado,
-                    'data' => $live->data->format('d/m/Y'),
-                    'plataformas' => $live->plataformas_array,
-                    'plataformas_string' => $live->plataformas,
-                    'created_at' => $live->created_at->format('H:i:s')
-                ]
+                'live' => $live
             ]);
 
         } catch (\Exception $e) {
+            Log::error("Erro ao criar live: " . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Erro ao criar live: ' . $e->getMessage()
@@ -113,11 +96,35 @@ class LiveController extends Controller
         }
     }
 
+    /**
+     * Encerrar live
+     */
     public function destroy($id)
     {
         try {
-            $live = Live::findOrFail($id);
-            $live->delete();
+            $live = DB::table('lives')->where('id', $id)->first();
+            
+            if (!$live) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Live não encontrada'
+                ], 404);
+            }
+
+            if (!$live->ativo) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Esta live já foi encerrada'
+                ], 400);
+            }
+
+            // Encerrar live (marcar como inativa)
+            DB::table('lives')
+                ->where('id', $id)
+                ->update([
+                    'ativo' => false,
+                    'updated_at' => now()
+                ]);
 
             return response()->json([
                 'success' => true,
@@ -125,103 +132,10 @@ class LiveController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            Log::error("Erro ao encerrar live: " . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Erro ao encerrar live: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    public function getLiveAtiva()
-    {
-        $live = Live::whereDate('data', Carbon::today())->first();
-        
-        if ($live) {
-            return response()->json([
-                'success' => true,
-                'live' => [
-                    'id' => $live->id,
-                    'tipo_live' => $live->tipo_live,
-                    'tipo_live_formatado' => $live->tipo_live_formatado,
-                    'data' => $live->data->format('d/m/Y'),
-                    'plataformas' => $live->plataformas_array,
-                    'plataformas_string' => $live->plataformas,
-                    'created_at' => $live->created_at->format('H:i:s')
-                ]
-            ]);
-        }
-
-        return response()->json([
-            'success' => false,
-            'message' => 'Nenhuma live ativa encontrada.'
-        ]);
-    }
-
-    public function show($id)
-    {
-        try {
-            $live = Live::findOrFail($id);
-            
-            return response()->json([
-                'success' => true,
-                'live' => [
-                    'id' => $live->id,
-                    'tipo_live' => $live->tipo_live,
-                    'tipo_live_formatado' => $live->tipo_live_formatado,
-                    'data' => $live->data->format('d/m/Y'),
-                    'plataformas' => $live->plataformas_array,
-                    'plataformas_string' => $live->plataformas,
-                    'created_at' => $live->created_at->format('H:i:s')
-                ]
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Live não encontrada.'
-            ], 404);
-        }
-    }
-
-    public function update(Request $request, $id)
-    {
-        $validator = Validator::make($request->all(), [
-            'tipo_live' => 'sometimes|required|in:loja-aberta,leilao,precinho',
-            'plataformas' => 'sometimes|required|array|min:1',
-            'plataformas.*' => 'in:instagram,tiktok,youtube'
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors(),
-                'message' => 'Dados inválidos.'
-            ], 422);
-        }
-
-        try {
-            $live = Live::findOrFail($id);
-            
-            $live->update($request->only(['tipo_live', 'plataformas']));
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Live atualizada com sucesso!',
-                'live' => [
-                    'id' => $live->id,
-                    'tipo_live' => $live->tipo_live,
-                    'tipo_live_formatado' => $live->tipo_live_formatado,
-                    'data' => $live->data->format('d/m/Y'),
-                    'plataformas' => $live->plataformas_array,
-                    'plataformas_string' => $live->plataformas,
-                    'created_at' => $live->created_at->format('H:i:s')
-                ]
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erro ao atualizar live: ' . $e->getMessage()
             ], 500);
         }
     }

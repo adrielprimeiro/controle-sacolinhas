@@ -82,7 +82,7 @@ Route::middleware('auth')->group(function () {
         return redirect('/dashboard');
     })->name('home');
 
-    // Items
+    // ===== ITEMS =====
     Route::resource('items', ItemController::class);
     
     // Admin Items
@@ -98,22 +98,28 @@ Route::middleware('auth')->group(function () {
         ]);
     });
 
-    // Lives e Bags
-    Route::resource('bags', LiveController::class);
-    Route::resource('sacolinhas', SacolinhaController::class);
-    Route::resource('lives', LiveController::class)->except(['create', 'edit']);
-    Route::get('/bags', [LiveController::class, 'index'])->name('bags.index');
+    // ===== SACOLINHAS (BAGS) =====
+    // Página principal das sacolinhas
+    Route::get('/sacolinhas', [SacolinhaController::class, 'index'])->name('sacolinhas.index');
+    Route::get('/bags', [SacolinhaController::class, 'index'])->name('bags.index'); // Alias para compatibilidade
     
-    // AJAX Lives
-    Route::get('/lives', [LiveController::class, 'index']);
-    Route::post('/lives', [LiveController::class, 'store']);
-    Route::delete('/lives/{id}', [LiveController::class, 'destroy']);
+    // Operações das sacolinhas
+    Route::post('/sacolinhas', [SacolinhaController::class, 'store'])->name('sacolinhas.store');
 
-    // API Routes
+    // ===== LIVES =====
+    // API para Lives (AJAX)
+    Route::get('/lives', [LiveController::class, 'index'])->name('lives.api.index');
+    Route::post('/lives', [LiveController::class, 'store'])->name('lives.api.store');
+    Route::delete('/lives/{id}', [LiveController::class, 'destroy'])->name('lives.api.destroy');
+
+    // ===== API ROUTES =====
     Route::prefix('api')->group(function () {
-        Route::get('/users/search', [UserController::class, 'search']);
-        Route::get('/items/search', [ItemController::class, 'search']);
-        Route::get('/sacolinhas/live/{liveId?}', [SacolinhaController::class, 'getBagsByLive']);
-        Route::delete('/sacolinhas/remove', [SacolinhaController::class, 'removeItem']);
+        // Busca de usuários e itens
+        Route::get('/users/search', [UserController::class, 'search'])->name('api.users.search');
+        Route::get('/items/search', [ItemController::class, 'search'])->name('api.items.search');
+        
+        // API das Sacolinhas
+        Route::get('/sacolinhas/live/{liveId?}', [SacolinhaController::class, 'getBagsByLive'])->name('api.sacolinhas.live');
+        Route::delete('/sacolinhas/remove', [SacolinhaController::class, 'removeItems'])->name('api.sacolinhas.remove');
     });
 });

@@ -3,10 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Sacolinhas;
-use App\Models\Lives;
+use App\Models\Live;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class SacolinhaController extends Controller
 {
@@ -15,242 +16,289 @@ class SacolinhaController extends Controller
         return view('admin.live.index');
     }
 
-    public function store(Request $request)
-    {
-        try {
-            // Validação
-            $request->validate([
-                'client_id' => 'required|integer|exists:users,id',
-                'item_id' => 'required|integer|exists:items,id',
-                'item_price' => 'required|numeric|min:0',
-                'item_quantity' => 'required|integer|min:1'
-            ]);
+	public function store(Request $request)
+	{
+		try {
+			// Validação
+			$request->validate([
+				'client_id' => 'required|integer|exists:users,id',
+				'item_id' => 'required|integer|exists:items,id',
+				'item_price' => 'required|numeric|min:0',
+			]);
 
-            // Buscar live mais recente de hoje (sem usar 'status')
-            $liveAtiva = DB::table('lives')
-                          ->whereDate('created_at', today())
-                          ->orderBy('created_at', 'desc')
-                          ->first();
+			// Buscar live ativa
+			$liveAtiva = DB::table('lives')
+						  ->where('ativo', 1)
+						  ->orderBy('created_at', 'desc')
+						  ->first();
 
-            if (!$liveAtiva) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Não há live criada hoje!'
-                ], 400);
-            }
+			if (!$liveAtiva) {
+				return response()->json([
+					'success' => false,
+					'message' => 'Não há live ativa no momento!'
+				], 400);
+			}
 
-            // Buscar dados do cliente
-            $client = User::find($request->client_id);
-            if (!$client) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Cliente não encontrado!'
-                ], 404);
-            }
+			// Buscar dados do cliente
+			$client = User::find($request->client_id);
+			if (!$client) {
+				return response()->json([
+					'success' => false,
+					'message' => 'Cliente não encontrado!'
+				], 404);
+			}
 
-            // Buscar dados do item
-            $item = DB::table('items')->where('id', $request->item_id)->first();
-            if (!$item) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Item não encontrado!'
-                ], 404);
-            }
+			// Buscar dados do item
+			$item = DB::table('items')->where('id', $request->item_id)->first();
+			if (!$item) {
+				return response()->json([
+					'success' => false,
+					'message' => 'Item não encontrado!'
+				], 404);
+			}
 
-            // CORRIGIDO: Criar array vazio e adicionar sacolinhas corretamente
-            $sacolinhasArray = [];
-            
-            for ($i = 0; $i < $request->item_quantity; $i++) {
-                $sacolinha = Sacolinhas::create([
-                    'user_id' => $request->client_id,
-                    'item_id' => $request->item_id,
-                    'live_id' => $liveAtiva->id,  // ID da live encontrada
-                    'add_at' => now(),
-                    'status' => 'pendente',       // Status da sacolinha (não da live)
-                    'obs' => $request->obs ?? null
-                ]);
-                
-                //  Adicionar ao array corretamente
-                $sacolinhasArray[] = $sacolinha;
-            }
+			// MODIFICADO: Verificar se item já existe na sacola (evitar duplicatas)
+			$sacolaExistente = Sacolinhas::where([
+				'user_id' => $request->client_id,
+				'item_id' => $request->item_id,
+				'live_id' => $liveAtiva->id
+			])->first();
 
-            return response()->json([
-                'success' => true,
-                'message' => count($sacolinhasArray) > 1 
-                    ? count($sacolinhasArray) . ' itens adicionados à sacola com sucesso!' 
-                    : 'Item adicionado à sacola com sucesso!',
-                'data' => [
-                    'sacolinhas' => $sacolinhasArray,
-                    'client' => [
-                        'id' => $client->id,
-                        'name' => $client->name,
-                        'email' => $client->email
-                    ],
-                    'item' => [
-                        'id' => $item->id,
-                        'name' => $item->nome_do_produto,
-                        'price' => (float) $item->preco,
-                        'formatted_price' => 'R$ ' . number_format((float) $item->preco, 2, ',', '.')
-                    ],
-                    'quantity' => count($sacolinhasArray)
-                ]
-            ]);
+			if ($sacolaExistente) {
+				return response()->json([
+					'success' => false,
+					'message' => 'Este item já está na sacola deste cliente!'
+				]);
+			}
 
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erro interno: ' . $e->getMessage()
-            ], 500);
-        }
-    }
+			// Verificar se as colunas existem
+			$columns = \Schema::getColumnListing('sacolinhas');
+			
+			// MODIFICADO: Usar o preço enviado pelo formulário (não o preço original do item)
+			$priceToStore = (float) $request->item_price;
 
-    public function getBagsByLive($liveId = null)
-    {
-        try {
-            if (!$liveId) {
-                // CORRIGIDO: Buscar live mais recente de hoje (sem usar 'status')
-                $live = DB::table('live')
-                          ->whereDate('created_at', today())
-                          ->orderBy('created_at', 'desc')
-                          ->first();
-                
-                if (!$live) {
-                    return response()->json([
-                        'success' => true,
-                        'data' => [],
-                        'message' => 'Nenhuma live criada hoje'
-                    ]);
-                }
-                
-                $liveId = $live->id;
-            }
+			// Preparar dados para inserção
+			$data = [
+				'user_id' => $request->client_id,
+				'item_id' => $request->item_id,
+				'live_id' => $liveAtiva->id,
+				'add_at' => now(),
+				'status' => 'pendente',
+				'obs' => $request->obs ?? null
+			];
 
-            // Buscar sacolinhas da live
-            $sacolinhas = DB::table('sacolinhas as s')
-                ->join('users as u', 's.user_id', '=', 'u.id')
-                ->join('items as i', 's.item_id', '=', 'i.id')
-                ->where('s.live_id', $liveId)
-                ->select([
-                    's.id as sacolinha_id',
-                    's.add_at',
-                    's.status',
-                    's.tray',
-                    's.obs',
-                    'u.id as user_id',
-                    'u.name as user_name',
-                    'u.email as user_email',
-                    'i.id as item_id',
-                    'i.nome_do_produto as item_name',
-                    'i.preco as item_price',
-                    'i.codigo as item_sku',
-                    'i.marca as item_brand',
-                    'i.cor as item_color',
-                    'i.tamanho as item_size'
-                ])
-                ->orderBy('s.add_at', 'desc')
-                ->get();
+			// MODIFICADO: Sempre quantidade 1 para itens únicos
+			if (in_array('quantity', $columns)) {
+				$data['quantity'] = 1;
+			}
+			if (in_array('price', $columns)) {
+				$data['price'] = $priceToStore;
+			}
 
-            // Agrupar por cliente
-            $bagsByClient = $sacolinhas->groupBy('user_id')->map(function ($clientSacolinhas) {
-                $firstItem = $clientSacolinhas->first();
-                
-                $itemsGrouped = $clientSacolinhas->groupBy('item_id')->map(function ($itemSacolinhas) {
-                    $firstItem = $itemSacolinhas->first();
-                    $quantity = $itemSacolinhas->count();
-                    $totalPrice = $quantity * (float) $firstItem->item_price;
-                    
-                    return [
-                        'sacolinha_ids' => $itemSacolinhas->pluck('sacolinha_id')->toArray(),
-                        'item_id' => $firstItem->item_id,
-                        'item_name' => $firstItem->item_name,
-                        'item_sku' => $firstItem->item_sku,
-                        'item_brand' => $firstItem->item_brand,
-                        'item_color' => $firstItem->item_color,
-                        'item_size' => $firstItem->item_size,
-                        'quantity' => $quantity,
-                        'unit_price' => (float) $firstItem->item_price,
-                        'total_price' => $totalPrice,
-                        'formatted_unit_price' => 'R$ ' . number_format((float) $firstItem->item_price, 2, ',', '.'),
-                        'formatted_total_price' => 'R$ ' . number_format($totalPrice, 2, ',', '.'),
-                        'status' => $firstItem->status,
-                        'last_added' => $itemSacolinhas->max('add_at')
-                    ];
-                })->values();
+			// Criar nova entrada (sem lógica de atualização de quantidade)
+			$sacolinha = Sacolinhas::create($data);
 
-                $totalBagValue = $itemsGrouped->sum('total_price');
-                $totalQuantity = $itemsGrouped->sum('quantity');
+			return response()->json([
+				'success' => true,
+				'message' => 'Item adicionado à sacola com sucesso!',
+				'data' => [
+					'sacolinha' => $sacolinha,
+					'client' => [
+						'id' => $client->id,
+						'name' => $client->name,
+						'email' => $client->email
+					],
+					'item' => [
+						'id' => $item->id,
+						'name' => $item->nome_do_produto,
+						'price' => $priceToStore, // MODIFICADO: Retornar o preço usado na sacola
+						'formatted_price' => 'R$ ' . number_format($priceToStore, 2, ',', '.')
+					]
+				]
+			]);
+		} catch (\Exception $e) {
+			Log::error("Erro ao adicionar item à sacola: " . $e->getMessage());
+			return response()->json([
+				'success' => false,
+				'message' => 'Erro interno: ' . $e->getMessage()
+			], 500);
+		}
+	}
 
-                return [
-                    'client' => [
-                        'id' => $firstItem->user_id,
-                        'name' => $firstItem->user_name,
-                        'email' => $firstItem->user_email,
-                        'avatar_url' => "https://ui-avatars.com/api/?name=" . urlencode($firstItem->user_name) . "&background=007bff&color=fff&size=128"
-                    ],
-                    'items' => $itemsGrouped,
-                    'total_items' => $itemsGrouped->count(),
-                    'total_quantity' => $totalQuantity,
-                    'total_value' => $totalBagValue,
-                    'formatted_total' => 'R$ ' . number_format($totalBagValue, 2, ',', '.')
-                ];
-            })->values();
+	public function getBagsByLive($liveId = null)
+	{
+		try {
+			Log::info("getBagsByLive iniciado com liveId: " . $liveId);
+			
+			// Verificar se as colunas existem
+			$columns = \Schema::getColumnListing('sacolinhas');
+			Log::info("Colunas da tabela sacolinhas: " . implode(', ', $columns));
+			
+			if (!$liveId) {
+				$live = DB::table('lives')
+						  ->where('ativo', 1)
+						  ->orderBy('created_at', 'desc')
+						  ->first();
+				
+				if (!$live) {
+					return response()->json([
+						'success' => true,
+						'data' => [],
+						'message' => 'Nenhuma live ativa encontrada'
+					]);
+				}
+				
+				$liveId = $live->id;
+			}
 
-            return response()->json([
-                'success' => true,
-                'data' => $bagsByClient,
-                'total_bags' => $bagsByClient->count(),
-                'total_items' => $sacolinhas->count()
-            ]);
+			// Verificar se existem registros
+			$count = DB::table('sacolinhas')->where('live_id', $liveId)->count();
+			Log::info("Registros encontrados: " . $count);
 
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erro ao carregar sacolas: ' . $e->getMessage()
-            ], 500);
-        }
-    }
+			if ($count === 0) {
+				return response()->json([
+					'success' => true,
+					'data' => [],
+					'live_id' => $liveId,
+					'total_bags' => 0,
+					'total_items' => 0,
+					'total_value' => 0
+				]);
+			}
 
-    public function removeItem(Request $request)
-    {
-        try {
-            $itemId = $request->input('item_id');
-            $userId = $request->input('user_id');
-            $liveId = $request->input('live_id');
-            $quantity = $request->input('quantity', 1);
+			// Query adaptada às colunas existentes
+			$selectFields = [
+				's.id as sacolinha_id',
+				's.user_id',
+				's.item_id',
+				's.add_at',
+				's.status',
+				's.obs',
+				'u.id as user_id',
+				'u.name as user_name', 
+				'u.email as user_email',
+				'i.id as item_id',
+				'i.nome_do_produto as item_name',
+				'i.codigo as item_sku',        // CORRIGIDO: 'codigo' em vez de 'sku'
+				'i.marca as item_brand',       // CORRETO
+				'i.cor as item_color',         // CORRETO
+				'i.tamanho as item_size'       // CORRETO
+			];
 
-            // CORRIGIDO: Buscar sacolinhas para remover com nome diferente
-            $sacolinhasToRemove = Sacolinhas::where('item_id', $itemId)
-                                  ->where('user_id', $userId)
-                                  ->where('live_id', $liveId)
-                                  ->limit($quantity)
-                                  ->get();
+			// MODIFICADO: Sempre usar o preço armazenado na sacola
+			if (in_array('price', $columns)) {
+				$selectFields[] = 's.price';
+			} else {
+				$selectFields[] = 'i.preco as price';
+			}
 
-            if ($sacolinhasToRemove->isEmpty()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Item não encontrado na sacola!'
-                ], 404);
-            }
+			$sacolinhas = DB::table('sacolinhas as s')
+				->join('users as u', 's.user_id', '=', 'u.id')
+				->join('items as i', 's.item_id', '=', 'i.id')
+				->where('s.live_id', $liveId)
+				->select($selectFields)
+				->orderBy('s.add_at', 'desc')
+				->get();
 
-            // CORRIGIDO: Remover as sacolinhas com variável diferente
-            $removedCount = 0;
-            foreach ($sacolinhasToRemove as $sacolinha) {
-                $sacolinha->delete();
-                $removedCount++;
-            }
+			Log::info("Query executada. Registros retornados: " . $sacolinhas->count());
 
-            return response()->json([
-                'success' => true,
-                'message' => $removedCount > 1 
-                    ? $removedCount . ' itens removidos da sacola!' 
-                    : 'Item removido da sacola com sucesso!'
-            ]);
+			// MODIFICADO: Processar resultados para itens únicos
+			$bagsByClient = $sacolinhas->groupBy('user_id')->map(function ($clientSacolinhas) {
+				$firstItem = $clientSacolinhas->first();
+				
+				$items = $clientSacolinhas->map(function ($sacola) {
+					$itemPrice = $sacola->price ?? 0;
+					
+					return [
+						'sacolinha_id' => $sacola->sacolinha_id,
+						'item_id' => $sacola->item_id,
+						'item_name' => $sacola->item_name,
+						'item_sku' => $sacola->item_sku,
+						'item_brand' => $sacola->item_brand,
+						'item_color' => $sacola->item_color,
+						'item_size' => $sacola->item_size,
+						'price' => (float) $itemPrice,
+						'formatted_total_price' => 'R$ ' . number_format($itemPrice, 2, ',', '.'), // MODIFICADO: Preço total = preço unitário para itens únicos
+						'status' => $sacola->status,
+						'added_at' => $sacola->add_at,
+						'obs' => $sacola->obs
+					];
+				});
 
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erro ao remover item: ' . $e->getMessage()
-            ], 500);
-        }
-    }
+				$totalItems = $items->count(); // MODIFICADO: Contar itens únicos
+				$totalValue = $items->sum('price'); // MODIFICADO: Somar preços individuais
+
+				return [
+					'client' => [
+						'id' => $firstItem->user_id,
+						'name' => $firstItem->user_name,
+						'email' => $firstItem->user_email,
+						'avatar_url' => 'https://ui-avatars.com/api/?name=' . urlencode($firstItem->user_name) . '&background=007bff&color=fff&size=128'
+					],
+					'items' => $items->values(),
+					'total_items' => $totalItems, // MODIFICADO: Número de itens únicos
+					'total_value' => $totalValue,
+					'formatted_total' => 'R$ ' . number_format($totalValue, 2, ',', '.')
+				];
+			});
+
+			return response()->json([
+				'success' => true,
+				'data' => $bagsByClient->values(),
+				'live_id' => $liveId,
+				'total_bags' => $bagsByClient->count(),
+				'total_items' => $sacolinhas->count(), // MODIFICADO: Total de itens únicos
+				'total_value' => $bagsByClient->sum('total_value')
+			]);
+
+		} catch (\Exception $e) {
+			Log::error("Erro completo em getBagsByLive: " . $e->getMessage());
+			Log::error("Linha: " . $e->getLine());
+			Log::error("Arquivo: " . $e->getFile());
+			
+			return response()->json([
+				'success' => false,
+				'message' => 'Erro ao buscar sacolinhas: ' . $e->getMessage()
+			], 500);
+		}
+	}
+
+	public function removeItems(Request $request)
+	{
+		try {
+			$request->validate([
+				'item_id' => 'required|integer',
+				'user_id' => 'required|integer',
+				'live_id' => 'required|integer'
+			]);
+
+			$sacola = Sacolinhas::where([
+				'item_id' => $request->item_id,
+				'user_id' => $request->user_id,
+				'live_id' => $request->live_id
+			])->first();
+
+			if (!$sacola) {
+				return response()->json([
+					'success' => false,
+					'message' => 'Item não encontrado na sacola'
+				], 404);
+			}
+
+			// MODIFICADO: Sempre remover completamente (itens únicos)
+			$sacola->delete();
+
+			return response()->json([
+				'success' => true,
+				'message' => 'Item removido da sacola com sucesso!'
+			]);
+
+		} catch (\Exception $e) {
+			Log::error("Erro ao remover item: " . $e->getMessage());
+			return response()->json([
+				'success' => false,
+				'message' => 'Erro ao remover item: ' . $e->getMessage()
+			], 500);
+		}
+	}
 }
