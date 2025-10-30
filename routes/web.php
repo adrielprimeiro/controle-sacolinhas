@@ -123,3 +123,10 @@ Route::middleware('auth')->group(function () {
         Route::delete('/sacolinhas/remove', [SacolinhaController::class, 'removeItems'])->name('api.sacolinhas.remove');
     });
 });
+
+Route::get('/api/lives/all', [App\Http\Controllers\LiveController::class, 'getAllLives'])->name('api.lives.all');
+
+
+Route::get('admin/sacolinhas', function () {
+    return view('admin.sacolinhas.index');
+})->name('admin.sacolinhas.index');

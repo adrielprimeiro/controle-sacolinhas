@@ -403,7 +403,7 @@
                         document.getElementById('original-price-display').style.display = 'none'; // Limpa o display do preço original
                         
                         carregarSacolas();
-                        
+						                        
                     } else {
                         mostrarAlert(data.message, 'danger');
                     }
@@ -432,7 +432,7 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        exibirSacolas(data.data);
+                        exibirSacolas(data.data);						
                     } else {
                         console.error('Erro ao carregar sacolas:', data.message);
                     }
@@ -987,6 +987,7 @@ function clearSelection(type) {
             
             document.dispatchEvent(new CustomEvent('itemCleared'));
             console.log('DEBUG: Evento itemCleared disparado.');
+	                }
         }
     }
     </script>

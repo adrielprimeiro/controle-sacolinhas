@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Models\Live; 
+
 
 class LiveController extends Controller
 {
@@ -138,5 +140,23 @@ class LiveController extends Controller
                 'message' => 'Erro ao encerrar live: ' . $e->getMessage()
             ], 500);
         }
+    }
+	
+    public function getAllLives()
+    {
+        $lives = Live::orderBy('created_at', 'desc')->get(); // Ou adicione paginação se houver muitas lives
+
+        // Formate as lives conforme necessário, por exemplo, adicionando 'status'
+        $formattedLives = $lives->map(function ($live) {
+            $live->status = $live->is_active ? 'ativa' : 'encerrada'; // Assumindo um campo 'is_active'
+            return $live;
+        });
+
+        return response()->json(['success' => true, 'data' => $formattedLives]);
+    }
+	
+	public function showLiveBagsOverview()
+    {
+        return view('admin.sacolinhas.index');
     }
 }
