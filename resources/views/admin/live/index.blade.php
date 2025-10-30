@@ -72,6 +72,11 @@
                             </a>
                         </li>
                         <li class="nav-item">
+                            <a class="nav-link text-white" href="{{ route('admin.sacolinhas.index') }}"> <!-- Atualizado para a nova rota -->
+                                <i class="fas fa-shopping-bag"></i> Sacolas
+                            </a>
+                        </li>
+                        <li class="nav-item">
                             <a class="nav-link text-white" href="{{ route('dashboard') }}">
                                 <i class="fas fa-home"></i> Dashboard
                             </a>

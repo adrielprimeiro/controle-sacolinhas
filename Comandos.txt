@@ -8,3 +8,13 @@ docker exec -it mysql-db mysql -u user -p
 
 SHOW TABLES;
 
+
+
+------------------------------------------------------------------------------------------
+Servidor
+
+# Opção 1: Remover a entrada antiga do known_hosts
+ssh-keygen -R vps55549.publiccloud.com.br
+
+# Depois tentar conectar novamente
+ssh root@vps55549.publiccloud.com.br

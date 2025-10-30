@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Gerenciar Sacolas de Lives</title>
+    <title>Gerenciar Sacolas</title>
 
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -54,15 +54,20 @@
                 <div class="p-3">
                     <h4>Admin</h4>
                     <hr>
-                    <ul class="nav flex-column">
+                      <ul class="nav flex-column">
                         <li class="nav-item">
                             <a class="nav-link text-white" href="{{ route('items.index') }}">
                                 <i class="fas fa-box"></i> Itens
                             </a>
                         </li>
                         <li class="nav-item">
+                            <a class="nav-link text-white" href="{{ route('bags.index') }}"> <!-- Novo item no menu -->
+                                <i class="fas fa-broadcast-tower"></i> Live
+                            </a>
+                        </li>
+                        <li class="nav-item">
                             <a class="nav-link text-white" href="{{ route('admin.sacolinhas.index') }}"> <!-- Atualizado para a nova rota -->
-                                <i class="fas fa-broadcast-tower"></i> Lives e Sacolas
+                                <i class="fas fa-shopping-bag"></i> Sacolas
                             </a>
                         </li>
                         <li class="nav-item">
@@ -75,6 +80,10 @@
             </div>
             <!-- Main Content -->
             <div class="col-md-10 p-4">
+			                <!-- Header -->
+                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap">
+                    <!-- Título -->
+                    <h2>Gerenciar Sacolinhas</h2>
 
                 <!-- Alerts (mantido para mensagens genéricas) -->
                 <div id="alert-container">

@@ -42,13 +42,18 @@
                     <hr>
                     <ul class="nav flex-column">
                         <li class="nav-item">
-                            <a class="nav-link text-white active" href="{{ route('items.index') }}">
+                            <a class="nav-link text-white" href="{{ route('items.index') }}">
                                 <i class="fas fa-box"></i> Itens
                             </a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link text-white" href="{{ route('bags.index') }}"> <!-- Novo item no menu -->
                                 <i class="fas fa-broadcast-tower"></i> Live
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-white" href="{{ route('admin.sacolinhas.index') }}"> <!-- Atualizado para a nova rota -->
+                                <i class="fas fa-shopping-bag"></i> Sacolas
                             </a>
                         </li>
                         <li class="nav-item">
