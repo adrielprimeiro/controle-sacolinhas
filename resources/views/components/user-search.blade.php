@@ -5,22 +5,24 @@
             <span class="input-group-text">
                 <i class="fas fa-search text-muted"></i>
             </span>
-            <input 
-				type="text" 
-				class="form-control user-search-input" 
-				placeholder="{{ $placeholder ?? 'Buscar por nome, email ou ID...' }}"
-				autocomplete="off"
-				autocapitalize="none"
-				autocorrect="off"
-				spellcheck="false"
-				data-form-type="other"
-				data-search-input="true"
-			>
+			    <input type="text" style="position:absolute;left:-9999px;" autocomplete="address-line1" tabindex="-1">
+				
+				<input 
+                type="text" 
+                class="form-control user-search-input" 
+                name="custom_search_xyz_field"
+                placeholder="{{ $placeholder ?? 'Buscar por nome, email ou ID...' }}"
+                autocomplete="new-password"
+                autocapitalize="none"
+                autocorrect="off"
+                spellcheck="false"
+                data-form-type="other"
+                data-search-input="true"
+            >
             <button class="btn btn-outline-secondary user-clear-btn d-none" type="button" data-clear-btn="true">
                 <i class="fas fa-times"></i>
             </button>
         </div>
-
         <!-- Dropdown de Sugestões -->
         <div class="user-suggestions-dropdown" data-suggestions="true" style="display: none;">
             <!-- Resultados aparecerão aqui -->

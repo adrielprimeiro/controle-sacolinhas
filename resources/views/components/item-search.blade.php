@@ -28,7 +28,7 @@
 
         <!-- Campos Hidden -->
         <input type="hidden" class="item-selected-id" name="{{ $name ?? 'item_id' }}" value="{{ $value ?? '' }}" data-hidden-input="true">
-        <input type="hidden" class="item-selected-price" name="{{ $priceField ?? 'item_price' }}" value="{{ $priceValue ?? '' }}" data-price-input="true">
+        <input type="hidden" class="item-selected-price" value="{{ $priceValue ?? '' }}" data-price-input="true">
     </div>
 
     <!-- Item Selecionado -->

@@ -992,7 +992,6 @@ function clearSelection(type) {
             
             document.dispatchEvent(new CustomEvent('itemCleared'));
             console.log('DEBUG: Evento itemCleared disparado.');
-	                }
         }
     }
     </script>
